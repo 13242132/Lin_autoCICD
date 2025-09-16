@@ -1,0 +1,357 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: NewsController
+service: NewsService
+repository: NewsRepository
+requestClasses: NewsRequests
+responseClasses: NewsResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.News;
+
+@Repository
+public interface NewsRepository extends JpaRepository<News, Long> {
+
+    // 单表：根据分类和来源查询新闻列表
+    @Query("SELECT n FROM News n WHERE (:category IS NULL OR n.categoryId = :category) AND (:source IS NULL OR n.source = :source)")
+    Page<News> findByCategoryAndSource(@Param("category") Integer category, @Param("source") String source, Pageable pageable);
+
+    // 单表：根据ID查询新闻
+    @Query("SELECT n FROM News n WHERE n.id = :id")
+    Optional<News> findById(@Param("id") Long id);
+
+    // 单表：插入新闻
+    default News insert(News entity) {
+        return save(entity);
+    }
+
+    // 单表：删除新闻
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListRequest {
+        private Integer category;
+        private String source;
+        private Integer page = 1;
+        private Integer size = 10;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateNewsRequest {
+        private String title;
+        private String source;
+        private String publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private Integer categoryId;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsDetailRequest {
+        private Long id;
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.News;
+import com.example.demo.entity.Comment;
+import com.example.demo.entity.Like;
+import com.example.demo.entity.User;
+import com.example.demo.repository.NewsRepository;
+import com.example.demo.api.querydto.CommentQueryDTO;
+import com.example.demo.api.querydto.LikeQueryDTO;
+import com.example.demo.api.service.CommentApiService;
+import com.example.demo.api.service.LikeApiService;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@Service
+public class NewsService {
+
+    private final NewsRepository repository;
+
+    @Autowired
+    private CommentApiService commentApiService;
+
+    @Autowired
+    private LikeApiService likeApiService;
+
+    public NewsService(NewsRepository repository) {
+        this.repository = repository;
+    }
+
+    // 创建新闻
+    public News createNews(News entity) {
+        if (entity.getTitle() == null || entity.getTitle().isEmpty()) {
+            throw new BusinessException("INVALID_DATA", "标题不能为空");
+        }
+        if (entity.getSource() == null || entity.getSource().isEmpty()) {
+            throw new BusinessException("INVALID_DATA", "来源不能为空");
+        }
+        return repository.insert(entity);
+    }
+
+    // 分页查询新闻列表
+    public NewsResponses.GetNewsListResponse getNewsList(NewsRequests.GetNewsListRequest request) {
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+        Page<News> newsPage = repository.findByCategoryAndSource(request.getCategory(), request.getSource(), pageable);
+
+        NewsResponses.GetNewsListResponse response = new NewsResponses.GetNewsListResponse();
+        response.setNews(newsPage.getContent().stream()
+                .map(news -> {
+                    NewsResponses.NewsItem item = new NewsResponses.NewsItem();
+                    item.setId(news.getId());
+                    item.setTitle(news.getTitle());
+                    item.setSource(news.getSource());
+                    item.setPublishedAt(news.getPublishedAt());
+                    item.setSummary(news.getSummary());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        response.setTotal(newsPage.getTotalElements());
+        response.setPage(request.getPage());
+        response.setSize(request.getSize());
+        response.setTotalPages(newsPage.getTotalPages());
+        return response;
+    }
+
+    // 获取新闻详情及关联信息
+    public NewsResponses.GetNewsDetailResponse getNewsDetail(Long id, Long currentUserId) {
+        Optional<News> newsOpt = repository.findById(id);
+        if (!newsOpt.isPresent()) {
+            throw new BusinessException("NEWS_NOT_FOUND", "新闻不存在");
+        }
+
+        News news = newsOpt.get();
+
+        // 查询评论
+        CommentQueryDTO commentQueryDTO = new CommentQueryDTO();
+        commentQueryDTO.setNewsId(id);
+        List<Comment> comments = commentApiService.queryByConditions(commentQueryDTO);
+
+        // 查询点赞数和是否点赞
+        LikeQueryDTO likeQueryDTO = new LikeQueryDTO();
+        likeQueryDTO.setNewsId(id);
+        List<Like> likes = likeApiService.queryByConditions(likeQueryDTO);
+        boolean isLiked = false;
+        if (currentUserId != null) {
+            isLiked = likes.stream().anyMatch(like -> like.getUserId().equals(currentUserId));
+        }
+
+        NewsResponses.GetNewsDetailResponse response = new NewsResponses.GetNewsDetailResponse();
+        response.setId(news.getId());
+        response.setTitle(news.getTitle());
+        response.setSource(news.getSource());
+        response.setPublishedAt(news.getPublishedAt());
+        response.setSummary(news.getSummary());
+        response.setUrl(news.getUrl());
+        response.setImageUrl(news.getImageUrl());
+        response.setComments(comments.stream().map(comment -> {
+            NewsResponses.CommentItem item = new NewsResponses.CommentItem();
+            item.setId(comment.getId());
+            item.setUserId(comment.getUserId());
+            item.setContent(comment.getContent());
+            item.setCreatedAt(comment.getCreatedAt());
+            return item;
+        }).collect(Collectors.toList()));
+        response.setLikesCount(likes.size());
+        response.setIsLiked(isLiked);
+        return response;
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+import java.time.LocalDateTime;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListResponse {
+        private List<NewsItem> news;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NewsItem {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsDetailResponse {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private List<CommentItem> comments;
+        private long likesCount;
+        private boolean isLiked;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CommentItem {
+        private Long id;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateNewsResponse {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private Integer categoryId;
+        private LocalDateTime createdAt;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.News;
+import com.example.demo.service.NewsService;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@RestController
+@RequestMapping("/api/news")
+public class NewsController {
+
+    private final NewsService service;
+
+    public NewsController(NewsService service) {
+        this.service = service;
+    }
+
+    // 获取新闻列表
+    @GetMapping
+    public ResponseEntity<NewsResponses.GetNewsListResponse> getNewsList(
+            @RequestParam(required = false) Integer category,
+            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        NewsRequests.GetNewsListRequest request = new NewsRequests.GetNewsListRequest(category, source, page, size);
+        NewsResponses.GetNewsListResponse response = service.getNewsList(request);
+        return ResponseEntity.ok(response);
+    }
+
+    // 创建新闻
+    @PostMapping
+    public ResponseEntity<NewsResponses.CreateNewsResponse> createNews(@RequestBody News news) {
+        News created = service.createNews(news);
+        NewsResponses.CreateNewsResponse response = new NewsResponses.CreateNewsResponse();
+        response.setId(created.getId());
+        response.setTitle(created.getTitle());
+        response.setSource(created.getSource());
+        response.setPublishedAt(created.getPublishedAt());
+        response.setSummary(created.getSummary());
+        response.setUrl(created.getUrl());
+        response.setImageUrl(created.getImageUrl());
+        response.setCategoryId(created.getCategoryId());
+        response.setCreatedAt(created.getCreatedAt());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 获取新闻详情
+    @GetMapping("/{id}")
+    public ResponseEntity<NewsResponses.GetNewsDetailResponse> getNewsDetail(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-ID", required = false) Long currentUserId) {
+
+        NewsResponses.GetNewsDetailResponse response = service.getNewsDetail(id, currentUserId);
+        return ResponseEntity.ok(response);
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---

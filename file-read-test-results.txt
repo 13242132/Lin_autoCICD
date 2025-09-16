@@ -1,0 +1,32 @@
+=== FileReadService 测试结果 ===
+
+=== 测试使用请求对象读取单个文件 ===
+文件路径: d:\code\flowise\Lin_autoCICD-main\src\main\java\com\example\ai\airepair\dto\FileReadRequest.java
+文件内容长度: 1042 字符
+文件内容预览: package com.example.ai.airepair.dto;
+
+import java.util.List;
+
+public class FileReadRequest {
+    
+  ...
+使用请求对象读取单个文件测试通过
+
+=== 测试读取单个文件 ===
+文件路径: d:\code\flowise\Lin_autoCICD-main\pom.xml
+内容长度: 3553 字符
+内容预览: <?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi=...
+单个文件读取测试通过
+
+=== 测试文件存在性 ===
+文件 d:\code\flowise\Lin_autoCICD-main\pom.xml 存在: true
+文件 d:\code\flowise\Lin_autoCICD-main\nonexistent.xml 存在: false
+文件存在性测试通过
+
+=== 测试从目录读取文件 ===
+目录路径: d:\code\flowise\Lin_autoCICD-main\src\main\java\com\example\ai\airepair\dto
+读取文件数量: 4
+总大小: 9 KB
+从目录读取文件测试通过
+

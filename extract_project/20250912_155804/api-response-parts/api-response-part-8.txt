@@ -1,0 +1,28 @@
+
+
+basicInfo: 获取用户个人信息 GET /api/users/profile - 获取当前登录用户的个人资料
+
+requestParams:
+(no parameters)
+
+responseParams:
+success:
+status_code: 200
+response_body:
+id: 1
+username: "user123"
+email: "user@example.com"
+createdAt: "2023-10-15T10:00:00Z"
+subscriptionCount: 3
+lastLoginAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 401
+response_body:
+error: "UNAUTHORIZED"
+message: "用户未登录"
+
+apiType: entity_related
+controller: UserController
+basePath: /api/users
+
+

@@ -1,0 +1,10 @@
+{
+  "controller": "RecommendationController",
+  "method": "GET",
+  "path": "/api/business/recommendations",
+  "process": [
+    "验证用户身份和权限",
+    "查询用户订阅的主题偏好",
+    "根据主题筛选并返回推荐新闻列表"
+  ]
+}

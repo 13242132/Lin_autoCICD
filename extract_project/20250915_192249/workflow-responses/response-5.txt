@@ -1,0 +1,26 @@
+{
+  "apiType": "business_related",
+  "basePath": "/api/health",
+  "httpMethod": "GET",
+  "requestParams": {},
+  "responseParams": {
+    "success": {
+      "status_code": 200,
+      "response_body": {
+        "status": "UP",
+        "timestamp": "2023-10-15T10:00:00Z",
+        "dependencies": {
+          "newsApi": "UP",
+          "authService": "UP"
+        }
+      }
+    },
+    "error": {
+      "status_code": 503,
+      "response_body": {
+        "status": "DOWN",
+        "failedDependency": "newsApi"
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+
+
+basicInfo: 获取用户阅读历史 GET /api/users/{userId}/history - 查询用户浏览过的新闻记录
+requestParams:
+userId: "路径参数 - 用户ID"
+page: "可选 - 页码，默认1"
+size: "可选 - 每页数量，默认10"
+responseParams:
+success:
+status_code: 200
+response_body:
+items:
+- id: 1001
+  userId: 1001
+  newsId: 1
+  title: "全球气候峰会召开"
+  source: "新华社"
+  readAt: "2023-10-15T10:00:00Z"
+total: 50
+page: 1
+size: 10
+error:
+status_code: 404
+response_body:
+error: "USER_NOT_FOUND"
+message: "用户不存在"
+apiType: entity_related
+controller: UserHistoryController
+basePath: /api/users/{userId}/history
+
+

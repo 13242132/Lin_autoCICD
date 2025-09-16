@@ -1,0 +1,29 @@
+
+
+basicInfo: 用户登录 POST /api/auth/login - 使用用户名密码登录系统
+
+requestParams:
+username: "zhangsan"
+password: "P@ssw0rd"
+
+responseParams:
+success:
+status_code: 200
+response_body:
+token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx"
+user:
+id: 1
+username: "zhangsan"
+role: "项目经理"
+loginTime: "2025-04-05 10:00:00"
+loginIp: "192.168.1.100"
+error:
+status_code: 401
+response_body:
+error: "INVALID_CREDENTIALS"
+message: "用户名或密码错误"
+
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+

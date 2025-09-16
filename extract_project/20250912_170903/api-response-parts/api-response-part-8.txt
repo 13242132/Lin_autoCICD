@@ -1,0 +1,26 @@
+
+
+basicInfo: 获取用户个人资料 GET /api/users/{userId}/profile - 查询用户详细信息
+requestParams:
+userId: "路径参数 - 用户ID"
+responseParams:
+success:
+status_code: 200
+response_body:
+id: 1001
+username: "user123"
+email: "user@example.com"
+avatar: "https://example.com/avatar/1001.jpg"
+status: "active"
+createdAt: "2023-10-15T10:00:00Z"
+subscriptionCount: 6
+lastLoginAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 404
+response_body:
+error: "USER_NOT_FOUND"
+message: "用户不存在"
+apiType: entity_related
+controller: UserController
+basePath: /api/users/{userId}/profile
+

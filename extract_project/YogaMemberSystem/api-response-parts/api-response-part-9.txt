@@ -1,0 +1,22 @@
+
+
+// 第9个接口
+basicInfo: 取消预约 DELETE /api/appointments/{id} - 取消课程预约
+requestParams:
+id: 1
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    message: "预约取消成功"
+error:
+  status_code: 400
+  response_body:
+    error: "CANCEL_FAILED"
+    message: "取消失败，已超过可取消时间"
+apiType: entity_related
+controller: AppointmentController
+basePath: /api/appointments
+

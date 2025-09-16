@@ -1,0 +1,288 @@
+根据提供的需求文档和原型HTML，我推断出以下实体定义并生成相应的接口文档：
+
+// 第1个接口
+basicInfo: 会员注册 POST /api/auth/register - 新用户注册
+requestParams:
+phone: "13800001111"
+password: "abc123"
+confirmPassword: "abc123"
+code: "123456"
+agreeTerms: true
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 201
+  response_body:
+    id: 1
+    phone: "13800001111"
+    nickname: "用户13800001111"
+    status: "正常"
+    createdAt: "2024-10-15 10:00:00"
+error:
+  status_code: 400
+  response_body:
+    error: "REGISTER_FAILED"
+    message: "注册失败，手机号已存在"
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+
+
+
+---API_SEPARATOR---
+
+
+
+// 第2个接口
+basicInfo: 会员登录 POST /api/auth/login - 用户登录
+requestParams:
+phone: "13800001111"
+password: "abc123"
+rememberMe: false
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    member:
+      id: 1
+      phone: "13800001111"
+      nickname: "张三"
+      status: "正常"
+error:
+  status_code: 401
+  response_body:
+    error: "LOGIN_FAILED"
+    message: "手机号或密码错误"
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+
+
+
+
+---ENTITY_LIST_START---
+@Table(name = "member_tbl")
+public class Member {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "phone", nullable = false, length = 11, unique = true)
+    private String phone;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "nickname", nullable = false, length = 50)
+    private String nickname;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "register_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    private LocalDate registerTime;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "course_tbl")
+public class Course {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "name", nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "coach", nullable = false, length = 50)
+    private String coach;
+
+    @Column(name = "start_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime endTime;
+
+    @Column(name = "total_slots", nullable = false)
+    private Integer totalSlots;
+
+    @Column(name = "available_slots", nullable = false)
+    private Integer availableSlots;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "appointment_tbl")
+public class Appointment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "appointment_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime appointmentTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "check_in_tbl")
+public class CheckIn {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "check_in_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime checkInTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "membership_card_tbl")
+public class MembershipCard {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "card_number", nullable = false, length = 20, unique = true)
+    private String cardNumber;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "status_update_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime statusUpdateTime = LocalDateTime.now();
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+---ENTITY_LIST_END---
+<?xml version="1.0" encoding="UTF-8"?>
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+     <parent>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+         <version>3.5.3</version>
+         <relativePath/> <!-- lookup parent from repository -->
+     </parent>
+     <groupId>com.example</groupId>
+     <artifactId>disk-mode-test</artifactId>
+     <version>0.0.1-SNAPSHOT</version>
+     <name>disk-mode-test</name>
+     <description>Auto-generated Spring Boot project with H2 support</description>
+     <properties>
+         <java.version>21</java.version>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+     </properties>
+     <dependencies>
+        <!-- JWT 支持（Token 生成与解析） -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-web</artifactId>
+         </dependency>
+         <!-- Jackson for JsonFormat annotation -->
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-annotations</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-data-jpa</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>com.h2database</groupId>
+             <artifactId>h2</artifactId>
+             <scope>runtime</scope>
+         </dependency>
+         <dependency>
+             <groupId>org.projectlombok</groupId>
+             <artifactId>lombok</artifactId>
+             <optional>true</optional>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-test</artifactId>
+             <scope>test</scope>
+         </dependency>
+     </dependencies>
+  
+     <build>
+         <plugins>
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+             </plugin>
+         </plugins>
+     </build>
+  
+ </project>

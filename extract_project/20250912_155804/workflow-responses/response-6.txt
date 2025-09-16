@@ -1,0 +1,173 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: UserController
+service: UserService
+repository: UserRepository
+requestClasses: UserRequests
+responseClasses: UserResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.User;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    
+    // 单表：根据ID查询用户
+    @Query("SELECT u FROM User u WHERE u.id = :id")
+    Optional<User> findById(@Param("id") Long id);
+    
+    // 单表：统计订阅数（需要关联Subscription表）
+    @Query("SELECT COUNT(s) FROM Subscription s WHERE s.userId = :userId")
+    long countSubscriptionsByUserId(@Param("userId") Long userId);
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+public class UserRequests {
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.User;
+import com.example.demo.repository.UserRepository;
+import com.example.demo.api.service.SubscriptionApiService;
+import com.example.demo.request.UserRequests;
+import com.example.demo.response.UserResponses;
+
+@Service
+public class UserService {
+    
+    private final UserRepository repository;
+    
+    // 注入外部模块的Service（用于获取订阅信息）
+    @Autowired
+    private SubscriptionApiService subscriptionApiService;
+    
+    public UserService(UserRepository repository) {
+        this.repository = repository;
+    }
+    
+    // 调用数据库层：获取当前登录用户信息并附加订阅计数
+    public UserResponses.GetProfileResponse getProfile(Long userId) {
+        Optional<User> userOpt = repository.findById(userId);
+        
+        if (!userOpt.isPresent()) {
+            throw new RuntimeException("User not found");
+        }
+        
+        User user = userOpt.get();
+        
+        // 获取订阅数量
+        long subscriptionCount = repository.countSubscriptionsByUserId(userId);
+        
+        return new UserResponses.GetProfileResponse(
+            user.getId(),
+            user.getUsername(),
+            user.getEmail(),
+            user.getCreatedAt().toString(),
+            subscriptionCount,
+            user.getLastLoginAt() != null ? user.getLastLoginAt().toString() : null
+        );
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+public class UserResponses {
+    
+    public static class GetProfileResponse {
+        private Long id;
+        private String username;
+        private String email;
+        private String createdAt;
+        private Long subscriptionCount;
+        private String lastLoginAt;
+        
+        public GetProfileResponse(Long id, String username, String email, String createdAt, Long subscriptionCount, String lastLoginAt) {
+            this.id = id;
+            this.username = username;
+            this.email = email;
+            this.createdAt = createdAt;
+            this.subscriptionCount = subscriptionCount;
+            this.lastLoginAt = lastLoginAt;
+        }
+        
+        public Long getId() { return id; }
+        public String getUsername() { return username; }
+        public String getEmail() { return email; }
+        public String getCreatedAt() { return createdAt; }
+        public Long getSubscriptionCount() { return subscriptionCount; }
+        public String getLastLoginAt() { return lastLoginAt; }
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.auth.annotation.CurrentUserId;
+import com.example.demo.response.UserResponses;
+import com.example.demo.service.UserService;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+    
+    private final UserService service;
+    
+    public UserController(UserService service) {
+        this.service = service;
+    }
+    
+    // 获取当前登录用户个人信息
+    @GetMapping("/profile")
+    public ResponseEntity<?> getProfile(@CurrentUserId Long userId) {
+        try {
+            UserResponses.GetProfileResponse response = service.getProfile(userId);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401)
+                .body(new ErrorResponse("UNAUTHORIZED", "用户未登录"));
+        }
+    }
+    
+    // 错误响应类
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+        
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+        
+        public String getError() { return error; }
+        public String getMessage() { return message; }
+    }
+}
+### ---CONTROLLER_END---

@@ -1,0 +1,423 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: TaskController
+service: TaskService
+repository: TaskRepository
+requestClasses: TaskRequests
+responseClasses: TaskResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Task;
+
+@Repository
+public interface TaskRepository extends JpaRepository<Task, Long> {
+
+    // 单表：创建任务
+    default Task create(Task task) {
+        return save(task);
+    }
+
+    // 单表：根据ID查找任务
+    @Query("SELECT t FROM Task t WHERE t.id = :id")
+    Optional<Task> findById(@Param("id") Long id);
+
+    // 单表：根据状态查询任务列表
+    @Query("SELECT t FROM Task t WHERE t.status = :status")
+    List<Task> findByStatus(@Param("status") String status);
+
+    // 单表：分页查询任务列表（按状态）
+    @Query("SELECT t FROM Task t WHERE t.status = :status")
+    Page<Task> findByStatus(@Param("status") String status, Pageable pageable);
+
+    // 单表：查询所有任务（分页）
+    @Query("SELECT t FROM Task t")
+    Page<Task> findAll(Pageable pageable);
+
+    // 单表：更新任务状态
+    @Query("UPDATE Task t SET t.status = :status, t.updatedAt = :updatedAt WHERE t.id = :id")
+    void updateStatus(@Param("id") Long id, @Param("status") String status, @Param("updatedAt") LocalDateTime updatedAt);
+
+    // 单表：查询指定用户分配的任务
+    @Query("SELECT t FROM Task t WHERE t.assignee = :assignee")
+    List<Task> findByAssignee(@Param("assignee") String assignee);
+
+    // 单表：根据ID删除任务
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+
+public class TaskRequests {
+
+    @Data
+    public static class CreateTaskRequest {
+        private String title;
+        private String description;
+        private String priority;
+        private LocalDateTime dueDate;
+        private String assignee;
+    }
+
+    @Data
+    public static class UpdateTaskStatusRequest {
+        private String status;
+    }
+
+    @Data
+    public static class GetTasksByStatusRequest {
+        private String status;
+    }
+
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.AuditLog;
+import com.example.demo.entity.Notification;
+import com.example.demo.entity.Task;
+import com.example.demo.repository.TaskRepository;
+import com.example.demo.api.querydto.NotificationQueryDTO;
+import com.example.demo.api.service.NotificationApiService;
+import com.example.demo.request.TaskRequests;
+import com.example.demo.response.TaskResponses;
+
+@Service
+public class TaskService {
+
+    private final TaskRepository repository;
+
+    @Autowired
+    private NotificationApiService notificationApiService;
+
+    public TaskService(TaskRepository repository) {
+        this.repository = repository;
+    }
+
+    // 创建任务
+    public Task createTask(Task task) {
+        task.setStatus("未开始");
+        task.setCreatedAt(LocalDateTime.now());
+        return repository.create(task);
+    }
+
+    // 获取任务详情
+    public Optional<Task> getTaskById(Long id) {
+        return repository.findById(id);
+    }
+
+    // 分页查询任务列表（支持按状态筛选）
+    public TaskResponses.GetTasksResponse getTasks(TaskRequests.GetTasksByStatusRequest request) {
+        Pageable pageable = PageRequest.of(0, 10); // 默认分页大小为10
+        Page<Task> taskPage;
+
+        if (request.getStatus() != null && !request.getStatus().isEmpty()) {
+            taskPage = repository.findByStatus(request.getStatus(), pageable);
+        } else {
+            taskPage = repository.findAll(pageable);
+        }
+
+        List<TaskResponses.TaskItem> items = taskPage.getContent().stream()
+                .map(this::convertToTaskItem)
+                .collect(Collectors.toList());
+
+        TaskResponses.GetTasksResponse response = new TaskResponses.GetTasksResponse();
+        response.setItems(items);
+        response.setTotal(taskPage.getTotalElements());
+        response.setPage(1);
+        response.setSize(10);
+        response.setTotalPages(taskPage.getTotalPages());
+        return response;
+    }
+
+    // 转换Task实体为TaskItem（用于响应）
+    private TaskResponses.TaskItem convertToTaskItem(Task task) {
+        TaskResponses.TaskItem item = new TaskResponses.TaskItem();
+        item.setId(task.getId());
+        item.setTitle(task.getTitle());
+        item.setPriority(task.getPriority());
+        item.setDueDate(task.getDueDate());
+        item.setAssignee(task.getAssignee());
+        item.setStatus(task.getStatus());
+        item.setCreatedAt(task.getCreatedAt());
+        return item;
+    }
+
+    // 更新任务状态
+    public Task updateTaskStatus(Long taskId, String newStatus) {
+        Optional<Task> taskOpt = repository.findById(taskId);
+        if (!taskOpt.isPresent()) {
+            throw new RuntimeException("任务不存在");
+        }
+
+        Task task = taskOpt.get();
+        String oldStatus = task.getStatus();
+
+        if ("已完成".equals(oldStatus) && !"已完成".equals(newStatus)) {
+            throw new RuntimeException("已完成状态不可变更");
+        }
+
+        task.setStatus(newStatus);
+        task.setUpdatedAt(LocalDateTime.now());
+
+        // 添加审计日志
+        AuditLog auditLog = new AuditLog();
+        auditLog.setAction("STATUS_UPDATED");
+        auditLog.setTargetType("Task");
+        auditLog.setTargetId(taskId);
+        auditLog.setDetails(String.format("从 '%s' 变更为 '%s'", oldStatus, newStatus));
+        auditLog.setCreatedAt(LocalDateTime.now());
+
+        // 发送通知
+        NotificationQueryDTO queryDTO = new NotificationQueryDTO();
+        queryDTO.setUserId(task.getAssignee());
+        List<Notification> notifications = notificationApiService.queryByConditions(queryDTO);
+
+        // 保存任务
+        return repository.save(task);
+    }
+
+    // 获取任务历史记录（模拟）
+    public TaskResponses.GetTaskHistoryResponse getTaskHistory(Long taskId) {
+        TaskResponses.GetTaskHistoryResponse response = new TaskResponses.GetTaskHistoryResponse();
+        List<TaskResponses.HistoryItem> historyItems = new ArrayList<>();
+
+        // 模拟历史记录
+        TaskResponses.HistoryItem item1 = new TaskResponses.HistoryItem();
+        item1.setTimestamp("2025-04-05 10:00:00");
+        item1.setAction("任务创建");
+        item1.setFrom(null);
+        item1.setTo("未开始");
+
+        TaskResponses.HistoryItem item2 = new TaskResponses.HistoryItem();
+        item2.setTimestamp("2025-04-05 11:30:00");
+        item2.setAction("状态变更为“进行中”");
+        item2.setFrom("未开始");
+        item2.setTo("进行中");
+
+        historyItems.add(item1);
+        historyItems.add(item2);
+
+        response.setHistory(historyItems);
+        return response;
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import lombok.Data;
+
+public class TaskResponses {
+
+    @Data
+    public static class CreateTaskResponse {
+        private Long id;
+        private String title;
+        private String description;
+        private String priority;
+        private LocalDateTime dueDate;
+        private String assignee;
+        private String status;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    public static class GetTasksResponse {
+        private List<TaskItem> items;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+
+        @Data
+        public static class TaskItem {
+            private Long id;
+            private String title;
+            private String priority;
+            private LocalDateTime dueDate;
+            private String assignee;
+            private String status;
+            private LocalDateTime createdAt;
+        }
+    }
+
+    @Data
+    public static class UpdateTaskStatusResponse {
+        private Long id;
+        private String title;
+        private String status;
+        private LocalDateTime updatedAt;
+        private List<HistoryItem> history;
+
+        @Data
+        public static class HistoryItem {
+            private String timestamp;
+            private String action;
+            private String from;
+            private String to;
+        }
+    }
+
+    @Data
+    public static class GetTaskHistoryResponse {
+        private List<HistoryItem> history;
+
+        @Data
+        public static class HistoryItem {
+            private String timestamp;
+            private String action;
+            private String from;
+            private String to;
+        }
+    }
+
+    @Data
+    public static class ErrorResponse {
+        private String error;
+        private String message;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.Task;
+import com.example.demo.request.TaskRequests;
+import com.example.demo.response.TaskResponses;
+import com.example.demo.service.TaskService;
+
+@RestController
+@RequestMapping("/api/tasks")
+public class TaskController {
+
+    private final TaskService service;
+
+    public TaskController(TaskService service) {
+        this.service = service;
+    }
+
+    // 创建任务
+    @PostMapping
+    public ResponseEntity<?> createTask(@RequestBody TaskRequests.CreateTaskRequest request) {
+        try {
+            Task task = new Task();
+            task.setTitle(request.getTitle());
+            task.setDescription(request.getDescription());
+            task.setPriority(request.getPriority());
+            task.setDueDate(request.getDueDate());
+            task.setAssignee(request.getAssignee());
+
+            Task createdTask = service.createTask(task);
+
+            TaskResponses.CreateTaskResponse response = new TaskResponses.CreateTaskResponse();
+            response.setId(createdTask.getId());
+            response.setTitle(createdTask.getTitle());
+            response.setDescription(createdTask.getDescription());
+            response.setPriority(createdTask.getPriority());
+            response.setDueDate(createdTask.getDueDate());
+            response.setAssignee(createdTask.getAssignee());
+            response.setStatus(createdTask.getStatus());
+            response.setCreatedAt(createdTask.getCreatedAt());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            TaskResponses.ErrorResponse error = new TaskResponses.ErrorResponse();
+            error.setError("TASK_CREATION_FAILED");
+            error.setMessage(e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // 获取任务列表
+    @GetMapping
+    public ResponseEntity<?> getTasks(TaskRequests.GetTasksByStatusRequest request) {
+        try {
+            TaskResponses.GetTasksResponse response = service.getTasks(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            TaskResponses.ErrorResponse error = new TaskResponses.ErrorResponse();
+            error.setError("INTERNAL_ERROR");
+            error.setMessage("服务器错误");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    // 更新任务状态
+    @PutMapping("/{taskId}/status")
+    public ResponseEntity<?> updateTaskStatus(
+            @PathVariable Long taskId,
+            @RequestBody TaskRequests.UpdateTaskStatusRequest request) {
+        try {
+            Task updatedTask = service.updateTaskStatus(taskId, request.getStatus());
+
+            TaskResponses.UpdateTaskStatusResponse response = new TaskResponses.UpdateTaskStatusResponse();
+            response.setId(updatedTask.getId());
+            response.setTitle(updatedTask.getTitle());
+            response.setStatus(updatedTask.getStatus());
+            response.setUpdatedAt(updatedTask.getUpdatedAt());
+
+            TaskResponses.GetTaskHistoryResponse historyResponse = service.getTaskHistory(taskId);
+            response.setHistory(historyResponse.getHistory());
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            TaskResponses.ErrorResponse error = new TaskResponses.ErrorResponse();
+            error.setError("INVALID_STATUS_TRANSITION");
+            error.setMessage(e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        } catch (Exception e) {
+            TaskResponses.ErrorResponse error = new TaskResponses.ErrorResponse();
+            error.setError("INTERNAL_ERROR");
+            error.setMessage("服务器错误");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+}
+### ---CONTROLLER_END---

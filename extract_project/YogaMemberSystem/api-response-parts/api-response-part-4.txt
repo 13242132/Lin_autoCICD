@@ -1,0 +1,29 @@
+
+
+// 第4个接口
+basicInfo: 课程预约 POST /api/appointments - 预约课程
+requestParams:
+courseId: 1001
+memberId: 2001
+appointmentTime: "2024-10-16 18:00:00"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 201
+  response_body:
+    id: 1
+    courseId: 1001
+    memberId: 2001
+    appointmentTime: "2024-10-16 18:00:00"
+    status: "已预约"
+    createdAt: "2024-10-15 14:30:00"
+error:
+  status_code: 400
+  response_body:
+    error: "APPOINTMENT_FAILED"
+    message: "预约失败，课程已满或已预约"
+apiType: entity_related
+controller: AppointmentController
+basePath: /api/appointments
+

@@ -1,0 +1,22 @@
+
+
+basicInfo: 获取用户订阅主题 GET /api/subscriptions - 查询用户的新闻主题订阅
+requestParams:
+userId: "必填 - 用户ID"
+responseParams:
+success:
+status_code: 200
+response_body:
+- topicName: "科技"
+  subscribedAt: "2023-10-15T10:00:00Z"
+- topicName: "体育"
+  subscribedAt: "2023-10-15T10:05:00Z"
+error:
+status_code: 404
+response_body:
+error: "USER_NOT_FOUND"
+message: "用户不存在"
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/subscriptions
+

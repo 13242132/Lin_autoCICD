@@ -1,0 +1,29 @@
+
+
+basicInfo: 获取用户个人资料 GET /api/profile - 获取当前登录用户的基本信息
+requestParams:
+userId: "必填 - 用户ID"
+responseParams:
+success:
+status_code: 200
+response_body:
+id: 1
+username: "user123"
+email: "user@example.com"
+avatar: "https://example.com/avatar/1.jpg"
+status: "active"
+createdAt: "2023-10-15T10:00:00Z"
+subscriptions:
+- "科技"
+- "体育"
+- "财经"
+- "娱乐"
+error:
+status_code: 404
+response_body:
+error: "USER_NOT_FOUND"
+message: "用户不存在"
+apiType: entity_related
+controller: ProfileController
+basePath: /api/profile
+

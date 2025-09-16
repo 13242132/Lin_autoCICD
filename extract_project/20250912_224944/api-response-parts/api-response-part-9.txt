@@ -1,0 +1,125 @@
+
+---ENTITY_LIST_START---
+@Table(name = "user_tbl")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "username", nullable = false, length = 50)
+    private String username;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "nickname", length = 50)
+    private String nickname;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "role", length = 20)
+    private String role;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "task_tbl")
+public class Task {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "title", nullable = false, length = 255)
+    private String title;
+
+    @Column(name = "description", length = 1000)
+    private String description;
+
+    @Column(name = "priority", nullable = false, length = 10)
+    private String priority; // 枚举值：low, medium, high
+
+    @Column(name = "due_date", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime dueDate;
+
+    @Column(name = "assignee", nullable = false, length = 50)
+    private String assignee;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status; // 枚举值：未开始、进行中、已完成、已取消
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "updated_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime updatedAt;
+}
+
+@Table(name = "notification_tbl")
+public class Notification {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "type", nullable = false, length = 30)
+    private String type; // 枚举：task_assigned, status_changed, deadline_reminder
+
+    @Column(name = "content", nullable = false, length = 500)
+    private String content;
+
+    @Column(name = "is_read", nullable = false)
+    private Boolean isRead = false;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "sent_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime sentAt;
+}
+
+@Table(name = "audit_log_tbl")
+public class AuditLog {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "action", nullable = false, length = 50)
+    private String action; // 如：TASK_CREATED, STATUS_UPDATED
+
+    @Column(name = "target_type", nullable = false, length = 20)
+    private String targetType; // 如：Task, User
+
+    @Column(name = "target_id", nullable = false)
+    private Long targetId;
+
+    @Column(name = "details", columnDefinition = "TEXT")
+    private String details;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+---ENTITY_LIST_END---

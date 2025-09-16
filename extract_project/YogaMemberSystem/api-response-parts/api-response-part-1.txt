@@ -1,0 +1,30 @@
+根据提供的需求文档和原型HTML，我推断出以下实体定义并生成相应的接口文档：
+
+// 第1个接口
+basicInfo: 会员注册 POST /api/auth/register - 新用户注册
+requestParams:
+phone: "13800001111"
+password: "abc123"
+confirmPassword: "abc123"
+code: "123456"
+agreeTerms: true
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 201
+  response_body:
+    id: 1
+    phone: "13800001111"
+    nickname: "用户13800001111"
+    status: "正常"
+    createdAt: "2024-10-15 10:00:00"
+error:
+  status_code: 400
+  response_body:
+    error: "REGISTER_FAILED"
+    message: "注册失败，手机号已存在"
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+

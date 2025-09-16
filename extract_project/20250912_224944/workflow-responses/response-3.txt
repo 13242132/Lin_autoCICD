@@ -1,0 +1,56 @@
+{
+  "name": "sendTaskNotification",
+  "description": "向指定用户发送任务相关通知",
+  "steps": [
+    {
+      "stepName": "validateRequest",
+      "description": "校验请求参数有效性",
+      "service": "NotificationService",
+      "method": "validateNotificationRequest",
+      "inputParams": ["userId", "type", "content"],
+      "outputParams": ["validatedRequest"]
+    },
+    {
+      "stepName": "createNotification",
+      "description": "创建通知记录",
+      "service": "NotificationRepository",
+      "method": "save",
+      "inputParams": ["validatedRequest"],
+      "outputParams": ["notificationId"]
+    },
+    {
+      "stepName": "sendNotification",
+      "description": "实际发送通知",
+      "service": "NotificationService",
+      "method": "sendNotification",
+      "inputParams": ["notificationId"],
+      "outputParams": ["sendStatus", "sentAt"]
+    },
+    {
+      "stepName": "updateNotificationStatus",
+      "description": "更新通知发送状态",
+      "service": "NotificationRepository",
+      "method": "updateSentStatus",
+      "inputParams": ["notificationId", "sendStatus", "sentAt"],
+      "outputParams": ["updatedNotification"]
+    },
+    {
+      "stepName": "logAudit",
+      "description": "记录审计日志",
+      "service": "AuditLogService",
+      "method": "logNotificationSent",
+      "inputParams": ["userId", "notificationId", "sendStatus"],
+      "outputParams": ["auditLogId"]
+    }
+  ],
+  "errorHandling": {
+    "onError": "rollbackNotification",
+    "fallbackResponse": {
+      "status_code": 500,
+      "response_body": {
+        "error": "NOTIFICATION_SEND_FAILED",
+        "message": "通知服务不可用"
+      }
+    }
+  }
+}

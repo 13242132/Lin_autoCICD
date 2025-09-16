@@ -1,0 +1,28 @@
+
+
+basicInfo: 获取用户订阅主题列表 GET /api/subscriptions - 查询当前用户的新闻主题订阅
+
+requestParams:
+(no parameters)
+
+responseParams:
+success:
+status_code: 200
+response_body:
+[
+{
+id: 101
+topicName: "科技"
+subscribedAt: "2023-10-15T10:00:00Z"
+}
+]
+error:
+status_code: 401
+response_body:
+error: "UNAUTHORIZED"
+message: "用户未登录"
+
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/subscriptions
+

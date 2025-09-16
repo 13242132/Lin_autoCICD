@@ -1,0 +1,347 @@
+
+
+basicInfo: 更新用户阅读历史 POST /api/users/{userId}/history - 记录用户浏览的新闻
+requestParams:
+userId: "路径参数 - 用户ID"
+newsId: "请求体 - 新闻ID"
+readAt: "请求体 - 阅读时间"
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 1001
+userId: 1001
+newsId: 1
+title: "全球气候峰会召开"
+source: "新华社"
+readAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 400
+response_body:
+error: "INVALID_NEWS_ID"
+message: "新闻ID无效"
+apiType: entity_related
+controller: UserHistoryController
+basePath: /api/users/{userId}/history
+
+
+
+---API_SEPARATOR---
+
+
+
+basicInfo: 获取用户阅读历史 GET /api/users/{userId}/history - 查询用户浏览过的新闻记录
+requestParams:
+userId: "路径参数 - 用户ID"
+page: "可选 - 页码，默认1"
+size: "可选 - 每页数量，默认10"
+responseParams:
+success:
+status_code: 200
+response_body:
+items:
+- id: 1001
+  userId: 1001
+  newsId: 1
+  title: "全球气候峰会召开"
+  source: "新华社"
+  readAt: "2023-10-15T10:00:00Z"
+total: 50
+page: 1
+size: 10
+error:
+status_code: 404
+response_body:
+error: "USER_NOT_FOUND"
+message: "用户不存在"
+apiType: entity_related
+controller: UserHistoryController
+basePath: /api/users/{userId}/history
+
+
+
+
+---ENTITY_LIST_START---
+
+@Table(name = "user_tbl")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "username", nullable = false, length = 20)
+    private String username;
+
+    @Column(name = "email", nullable = false, length = 100)
+    private String email;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+
+    @Column(name = "last_login_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime lastLoginAt;
+}
+
+@Table(name = "news_tbl")
+public class News {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "source", nullable = false)
+    private String source;
+
+    @Column(name = "summary", length = 500)
+    private String summary;
+
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
+
+    @Column(name = "published_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime publishedAt;
+
+    @Column(name = "url", length = 500)
+    private String url;
+}
+
+@Table(name = "topic_tbl")
+public class Topic {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "topic_name", nullable = false, length = 50)
+    private String topicName;
+
+    @Column(name = "description", length = 200)
+    private String description;
+
+    @Column(name = "news_count")
+    private Integer newsCount;
+
+    @Column(name = "trend_score", precision = 5, scale = 2)
+    private BigDecimal trendScore;
+}
+
+@Table(name = "subscription_tbl")
+public class Subscription {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "topic_name", nullable = false, length = 50)
+    private String topicName;
+
+    @Column(name = "subscribed_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime subscribedAt;
+}
+
+@Table(name = "comment_tbl")
+public class Comment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
+
+    @Column(name = "content", nullable = false, length = 1000)
+    private String content;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+
+    @Column(name = "parent_comment_id")
+    private Long parentCommentId;
+}
+
+@Table(name = "like_tbl")
+public class Like {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
+
+    @Column(name = "liked_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime likedAt;
+}
+
+@Table(name = "audit_log_tbl")
+public class AuditLog {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "action", nullable = false, length = 50)
+    private String action;
+
+    @Column(name = "entity_type", length = 50)
+    private String entityType;
+
+    @Column(name = "entity_id")
+    private Long entityId;
+
+    @Column(name = "details", length = 1000)
+    private String details;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "user_history_tbl")
+public class UserHistory {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
+
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "source", nullable = false)
+    private String source;
+
+    @Column(name = "read_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime readAt;
+}
+
+---ENTITY_LIST_END---
+<?xml version="1.0" encoding="UTF-8"?>
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+     <parent>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+         <version>3.5.3</version>
+         <relativePath/> <!-- lookup parent from repository -->
+     </parent>
+     <groupId>com.example</groupId>
+     <artifactId>disk-mode-test</artifactId>
+     <version>0.0.1-SNAPSHOT</version>
+     <name>disk-mode-test</name>
+     <description>Auto-generated Spring Boot project with H2 support</description>
+     <properties>
+         <java.version>21</java.version>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+     </properties>
+     <dependencies>
+        <!-- JWT 支持（Token 生成与解析） -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-web</artifactId>
+         </dependency>
+         <!-- Spring Boot Validation -->
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-validation</artifactId>
+         </dependency>
+         <!-- Jackson for JsonFormat annotation -->
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-annotations</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-data-jpa</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>com.h2database</groupId>
+             <artifactId>h2</artifactId>
+             <scope>runtime</scope>
+         </dependency>
+         <dependency>
+             <groupId>org.flywaydb</groupId>
+             <artifactId>flyway-core</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.projectlombok</groupId>
+             <artifactId>lombok</artifactId>
+             <optional>true</optional>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-test</artifactId>
+             <scope>test</scope>
+         </dependency>
+     </dependencies>
+  
+     <build>
+         <plugins>
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+             </plugin>
+         </plugins>
+     </build>
+  
+ </project>

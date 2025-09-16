@@ -1,0 +1,16 @@
+
+basicInfo: 删除用户主题订阅 DELETE /api/subscriptions/{id} - 取消特定主题订阅
+requestParams:
+id: "路径参数 - 订阅记录ID"
+responseParams:
+success:
+status_code: 204
+response_body: {}
+error:
+status_code: 404
+response_body:
+error: "SUBSCRIPTION_NOT_FOUND"
+message: "未找到对应的订阅记录"
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/subscriptions

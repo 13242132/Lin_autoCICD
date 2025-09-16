@@ -1,0 +1,29 @@
+
+
+// 第7个接口
+basicInfo: 获取会员卡列表 GET /api/membership-cards - 查询会员卡信息
+requestParams:
+keyword: "可选 - 搜索关键词（卡号或姓名）"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    - cardNumber: "YJ20241015001"
+      memberName: "张三"
+      status: "正常"
+      statusUpdateTime: "2024-10-15 10:00:00"
+    - cardNumber: "YJ20241015002"
+      memberName: "李四"
+      status: "冻结"
+      statusUpdateTime: "2024-10-14 15:30:00"
+error:
+  status_code: 403
+  response_body:
+    error: "FORBIDDEN"
+    message: "无权限访问"
+apiType: entity_related
+controller: MembershipCardController
+basePath: /api/membership-cards
+

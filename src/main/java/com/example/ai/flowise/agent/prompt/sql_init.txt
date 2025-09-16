@@ -1,0 +1,354 @@
+你是一名专业的 Java Spring Boot 开发助手，精通 Flyway 数据库迁移。
+
+现在我给你一组已经定义好的 JPA 实体类（如下所示，用 ---ENTITY_BOUNDARY--- 分隔）。
+
+请根据这些实体类生成一个完整的 Flyway 迁移文件 V1__Initial_schema.sql，包含表创建语句和初始数据插入，用于在 H2 数据库初始化时创建表结构并插入有代表性的数据。
+
+要求：
+
+1. 表创建规范：
+
+• 使用 H2 数据库语法创建所有表。
+
+• 主键使用 GENERATED ALWAYS AS IDENTITY 定义自增。
+
+• 外键约束必须明确定义。
+
+• 表名和字段名必须和实体类中定义的 @Table(name = "xxx") 和 @Column(name = "xxx") 完全一致。
+
+2. 数据覆盖代表性场景：
+
+• 用户表中至少有一个管理员用户和两个普通用户。
+
+• 相关表中插入足够多的数据，覆盖不同状态和关联关系。
+
+• 确保数据之间的关联性（如外键引用）。
+
+3. 格式要求：
+
+• 生成的内容是完整的 SQL 脚本，包含 CREATE TABLE 和 INSERT 语句。
+
+• 确保 SQL 语法兼容 H2。
+
+• 文件路径为 src/main/resources/db/migration/V1__Initial_schema.sql。
+
+4. 注释规范（必须执行）
+
+• 文件开头添加总体说明注释块。
+
+• 每张表的创建前，必须写一个表头注释块，包含表名和字段信息。
+
+• 每个字段注释包含：字段名、类型、约束（NOT NULL/可空）、说明（如果能从需求或命名推断）。
+
+• 注释格式必须如下：
+
+-- ========================================
+
+-- 初始数据库架构
+
+-- 创建所有必要的表并插入初始数据
+
+-- ========================================
+
+-- 创建用户表
+
+CREATE TABLE IF NOT EXISTS user_tbl (
+
+id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
+username VARCHAR(50) NOT NULL,
+
+password VARCHAR(100) NOT NULL
+
+);
+
+-- ========================================
+
+-- 插入初始数据
+
+-- ========================================
+
+5. 密码字段说明：
+
+• 为了简化，用户表中的 password 字段直接存储明文（例如 "admin123"， "user123"）。
+
+6. 时间字段：
+
+• 所有时间字段使用示例固定值（例如 '2025-01-01 10:00:00'）。
+
+7. 数据插入方式：
+
+• 使用标准 INSERT 语句插入数据。
+
+• 对于需要引用其他表自增ID的数据，使用子查询获取相关ID。
+
+• 例如：INSERT INTO enrollment_tbl (user_id, course_id, enrollment_date)
+
+SELECT u.id, c.id, '2025-02-01 09:00:00'
+
+FROM user_tbl u, course_tbl c
+
+WHERE u.email = 'alice@example.com' AND c.name = 'Java Programming';
+
+8. 输出格式：
+
+• 只输出 V1__Initial_schema.sql 文件的完整内容。
+
+• 不要解释说明。
+
+• 不要输出 Markdown 或代码块标记。
+
+输入示例：
+
+// Class: User
+
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+
+@Entity
+
+@Table(name = "user_tbl")
+
+public class User {
+
+@Id
+
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+
+@Column(name = "id")
+
+private Long id;
+
+@Column(name = "username", nullable = false, length = 50)
+
+private String username;
+
+@Column(name = "password", nullable = false, length = 100)
+
+private String password;
+
+@Column(name = "created_at", nullable = false)
+
+private LocalDateTime createdAt;
+
+}
+
+// ---ENTITY_BOUNDARY---
+
+// Class: Product
+
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+import java.math.BigDecimal;
+
+@Data
+
+@Entity
+
+@Table(name = "product_tbl")
+
+public class Product {
+
+@Id
+
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+
+@Column(name = "id")
+
+private Long id;
+
+@Column(name = "product_name", nullable = false, length = 100)
+
+private String productName;
+
+@Column(name = "product_code", nullable = false, length = 50)
+
+private String productCode;
+
+@Column(name = "price", nullable = false)
+
+private BigDecimal price;
+
+@Column(name = "description", nullable = false, length = 500)
+
+private String description;
+
+@Column(name = "category", nullable = false, length = 50)
+
+private String category;
+
+@Column(name = "specifications", nullable = false, length = 500)
+
+private String specifications;
+
+@Column(name = "status", nullable = false, length = 20)
+
+private String status;
+
+@Column(name = "created_at", nullable = false)
+
+private LocalDateTime createdAt;
+
+}
+
+// ---ENTITY_BOUNDARY---
+
+// Class: Order
+
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+import java.math.BigDecimal;
+
+@Data
+
+@Entity
+
+@Table(name = "order_tbl")
+
+public class Order {
+
+@Id
+
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+
+@Column(name = "id")
+
+private Long id;
+
+@Column(name = "order_number", nullable = false, length = 50)
+
+private String orderNumber;
+
+@Column(name = "user_id", nullable = false)
+
+private Long userId;
+
+@Column(name = "total_amount", nullable = false)
+
+private BigDecimal totalAmount;
+
+@Column(name = "status", nullable = false, length = 20)
+
+private String status;
+
+@Column(name = "created_at", nullable = false)
+
+private LocalDateTime createdAt;
+
+}
+
+输出示例：
+
+-- 创建用户表
+
+CREATE TABLE IF NOT EXISTS user_tbl (
+
+id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, -- 用户ID，自增主键
+
+username_col VARCHAR(50) NOT NULL, -- 用户名，不允许为空，最大长度50
+
+password_col VARCHAR(100) NOT NULL, -- 密码，不允许为空，最大长度100
+
+created_at_col TIMESTAMP NOT NULL -- 创建时间，不允许为空
+
+);
+
+-- 创建产品表
+
+CREATE TABLE IF NOT EXISTS product_tbl (
+
+id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, -- 产品ID，自增主键
+
+product_name_col VARCHAR(100) NOT NULL, -- 产品名称，不允许为空，最大长度100
+
+product_code_col VARCHAR(50) NOT NULL, -- 产品编码，不允许为空，最大长度50
+
+price_col DECIMAL NOT NULL, -- 产品价格，不允许为空
+
+description_col VARCHAR(500) NOT NULL, -- 产品描述，不允许为空，最大长度500
+
+category_col VARCHAR(50) NOT NULL, -- 产品类别，不允许为空，最大长度50
+
+specifications_col VARCHAR(500) NOT NULL, -- 产品规格，不允许为空，最大长度500
+
+status_col VARCHAR(20) NOT NULL, -- 产品状态，不允许为空，最大长度20
+
+created_at_col TIMESTAMP NOT NULL -- 创建时间，不允许为空
+
+);
+
+-- 创建订单表
+
+CREATE TABLE IF NOT EXISTS order_tbl (
+
+id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, -- 订单ID，自增主键
+
+order_number_col VARCHAR(50) NOT NULL, -- 订单号，不允许为空，最大长度50
+
+user_id_col BIGINT NOT NULL, -- 用户ID，外键关联用户表，不允许为空
+
+total_amount_col DECIMAL NOT NULL, -- 订单总金额，不允许为空
+
+status_col VARCHAR(20) NOT NULL, -- 订单状态，不允许为空，最大长度20
+
+created_at_col TIMESTAMP NOT NULL, -- 创建时间，不允许为空
+
+FOREIGN KEY (user_id_col) REFERENCES user_tbl(id) -- 外键约束，关联用户表的ID
+
+);
+
+INSERT INTO user_tbl (username_col, password_col, created_at_col)
+
+VALUES ('alice', 'password123', '2025-01-01 10:00:00');
+
+INSERT INTO user_tbl (username_col, password_col, created_at_col)
+
+VALUES ('bob', 'securePass!', '2025-01-02 11:00:00');
+
+INSERT INTO product_tbl (product_name_col, product_code_col, price_col, description_col, category_col, specifications_col, status_col, created_at_col)
+
+VALUES ('iPhone 15', 'IP15', 6999.00, '最新款 iPhone', '电子产品', '128GB, 黑色', 'ACTIVE', '2025-01-01 09:00:00');
+
+INSERT INTO product_tbl (product_name_col, product_code_col, price_col, description_col, category_col, specifications_col, status_col, created_at_col)
+
+VALUES ('T-Shirt', 'TSHIRT01', 199.00, '纯棉T恤', '服装', 'L码, 白色', 'ACTIVE', '2025-01-03 14:00:00');
+
+INSERT INTO product_tbl (product_name_col, product_code_col, price_col, description_col, category_col, specifications_col, status_col, created_at_col)
+
+VALUES ('巧克力', 'FOOD01', 29.90, '进口黑巧克力', '食品', '100g, 70%可可', 'INACTIVE', '2025-01-04 16:30:00');
+
+INSERT INTO order_tbl (order_number_col, user_id_col, total_amount_col, status_col, created_at_col)
+
+SELECT 'ORD001', u.id, 6999.00, 'PENDING', '2025-01-05 10:00:00'
+
+FROM user_tbl u
+
+WHERE u.username_col = 'alice';
+
+INSERT INTO order_tbl (order_number_col, user_id_col, total_amount_col, status_col, created_at_col)
+
+SELECT 'ORD002', u.id, 228.90, 'COMPLETED', '2025-01-06 14:30:00'
+
+FROM user_tbl u
+
+WHERE u.username_col = 'bob';
+

@@ -1,0 +1,150 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: TopicController
+service: TopicService
+repository: TopicRepository
+requestClasses: TopicRequests
+responseClasses: TopicResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Topic;
+
+@Repository
+public interface TopicRepository extends JpaRepository<Topic, Long> {
+
+    // 单表：查询所有主题
+    @Query("SELECT t FROM Topic t ORDER BY t.id")
+    List<Topic> findAllTopics();
+
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class TopicRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetTopicsRequest {
+        // 无参数
+    }
+
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Topic;
+import com.example.demo.repository.TopicRepository;
+import com.example.demo.response.TopicResponses;
+
+@Service
+public class TopicService {
+
+    private final TopicRepository repository;
+
+    public TopicService(TopicRepository repository) {
+        this.repository = repository;
+    }
+
+    // 查询所有主题
+    public List<TopicResponses.TopicItem> getAllTopics() {
+        List<Topic> topics = repository.findAllTopics();
+        return topics.stream()
+                .map(topic -> {
+                    TopicResponses.TopicItem item = new TopicResponses.TopicItem();
+                    item.setId(topic.getId());
+                    item.setName(topic.getName());
+                    item.setDescription(topic.getDescription());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class TopicResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TopicItem {
+        private Long id;
+        private String name;
+        private String description;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetTopicsResponse {
+        private List<TopicItem> topics;
+    }
+
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import com.example.demo.response.TopicResponses;
+import com.example.demo.service.TopicService;
+
+@RequestMapping("/api/topics")
+@RestController
+public class TopicController {
+
+    private final TopicService service;
+
+    public TopicController(TopicService service) {
+        this.service = service;
+    }
+
+    // 获取所有主题
+    @GetMapping
+    public ResponseEntity<List<TopicResponses.TopicItem>> getTopics() {
+        List<TopicResponses.TopicItem> topics = service.getAllTopics();
+        return ResponseEntity.ok(topics);
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---

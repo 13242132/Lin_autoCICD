@@ -1,0 +1,254 @@
+\### ---AUTH_AI_OUTPUT_START---
+
+\### ---CLASS_NAMES_START---
+
+controller: AuthController
+
+service: AuthService
+
+repository: AuthRepository
+
+requestClasses: AuthRequests
+
+responseClasses: AuthResponses
+
+\### ---CLASS_NAMES_END---
+
+\### ---REPOSITORY_START---
+
+```java
+package com.example.demo.auth.repository;
+
+import com.example.demo.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AuthRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+}
+```
+
+\### ---REPOSITORY_END---
+
+\### ---REQUEST_CLASSES_START---
+
+```java
+package com.example.demo.auth.request;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+public class AuthRequests {
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank(message = "用户名不能为空")
+        private String username;
+
+        @NotBlank(message = "密码不能为空")
+        private String password;
+
+        @NotBlank(message = "确认密码不能为空")
+        private String confirmPassword;
+    }
+
+    @Data
+    public static class LoginRequest {
+        @NotBlank(message = "用户名不能为空")
+        private String username;
+
+        @NotBlank(message = "密码不能为空")
+        private String password;
+    }
+}
+```
+
+\### ---REQUEST_CLASSES_END---
+
+\### ---SERVICE_START---
+
+```java
+package com.example.demo.auth.service;
+
+import com.example.demo.entity.User;
+import com.example.demo.auth.repository.AuthRepository;
+import com.example.demo.auth.response.AuthResponses;
+import com.example.demo.auth.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import jakarta.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private AuthRepository authRepository;
+
+    public AuthResponses.RegisterResponse register(String username, String password, String confirmPassword) {
+        if (!password.equals(confirmPassword)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Passwords do not match");
+        }
+
+        if (authRepository.findByUsername(username).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该用户名已被占用");
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password); // 实际项目中应加密存储，此处为简化逻辑
+        user.setRole("用户"); // 默认角色
+        user.setStatus("active"); // 默认状态
+        user.setCreatedAt(LocalDateTime.now());
+
+        authRepository.save(user);
+
+        return new AuthResponses.RegisterResponse(user.getId(), user.getUsername(), user.getCreatedAt());
+    }
+
+    public AuthResponses.LoginResponse login(String username, String password, HttpServletRequest request) {
+        User user = authRepository.findByUsername(username)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名或密码错误"));
+
+        if (!user.getPassword().equals(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名或密码错误");
+        }
+
+        // 更新登录信息
+        user.setLastLoginAt(LocalDateTime.now());
+        String loginIp = getClientIpAddress(request);
+        user.setLoginIp(loginIp);
+        authRepository.save(user);
+
+        // 生成 Token（payload 包含 userId）
+        String token = JwtUtil.generateToken(user.getId());
+
+        // 构造返回的用户信息
+        AuthResponses.UserInfo userInfo = new AuthResponses.UserInfo();
+        userInfo.setId(user.getId());
+        userInfo.setUsername(user.getUsername());
+        userInfo.setRole(user.getRole());
+        userInfo.setLoginTime(user.getLastLoginAt());
+        userInfo.setLoginIp(loginIp);
+
+        return new AuthResponses.LoginResponse(token, userInfo);
+    }
+
+    private String getClientIpAddress(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            return xForwardedFor.split(",")[0].trim();
+        }
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            return xRealIp;
+        }
+        return request.getRemoteAddr();
+    }
+}
+```
+
+\### ---SERVICE_END---
+
+\### ---RESPONSE_CLASSES_START---
+
+```java
+package com.example.demo.auth.response;
+
+import lombok.Data;
+import java.time.LocalDateTime;
+
+public class AuthResponses {
+
+    @Data
+    public static class RegisterResponse {
+        private Long id;
+        private String username;
+        private LocalDateTime createdAt;
+
+        public RegisterResponse(Long id, String username, LocalDateTime createdAt) {
+            this.id = id;
+            this.username = username;
+            this.createdAt = createdAt;
+        }
+    }
+
+    @Data
+    public static class LoginResponse {
+        private String token;
+        private UserInfo user;
+
+        public LoginResponse(String token, UserInfo user) {
+            this.token = token;
+            this.user = user;
+        }
+    }
+
+    @Data
+    public static class UserInfo {
+        private Long id;
+        private String username;
+        private String role;
+        private LocalDateTime loginTime;
+        private String loginIp;
+    }
+}
+```
+
+\### ---RESPONSE_CLASSES_END---
+
+\### ---CONTROLLER_START---
+
+```java
+package com.example.demo.auth.controller;
+
+import com.example.demo.auth.request.AuthRequests;
+import com.example.demo.auth.response.AuthResponses;
+import com.example.demo.auth.service.AuthService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponses.RegisterResponse> register(
+            @RequestBody AuthRequests.RegisterRequest registerRequest) {
+
+        AuthResponses.RegisterResponse response = authService.register(
+                registerRequest.getUsername(),
+                registerRequest.getPassword(),
+                registerRequest.getConfirmPassword()
+        );
+
+        return ResponseEntity.status(201).body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponses.LoginResponse> login(
+            @RequestBody AuthRequests.LoginRequest loginRequest,
+            HttpServletRequest request) {
+
+        AuthResponses.LoginResponse response = authService.login(
+                loginRequest.getUsername(),
+                loginRequest.getPassword(),
+                request
+        );
+
+        return ResponseEntity.ok(response);
+    }
+}
+```
+
+\### ---CONTROLLER_END---

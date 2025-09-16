@@ -1,0 +1,24 @@
+basicInfo: 用户注册 POST /api/auth/register - 创建新用户账号
+
+requestParams:
+username: "zhangsan"
+password: "P@ssw0rd"
+confirmPassword: "P@ssw0rd"
+
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 1
+username: "zhangsan"
+createdAt: "2025-04-05 10:00:00"
+error:
+status_code: 400
+response_body:
+error: "REGISTRATION_FAILED"
+message: "该用户名已被占用"
+
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+

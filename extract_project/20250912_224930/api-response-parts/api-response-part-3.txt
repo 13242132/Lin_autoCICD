@@ -1,0 +1,29 @@
+
+
+basicInfo: 获取新闻列表 GET /api/news - 分页获取聚合新闻
+requestParams:
+category: "可选 - 新闻分类（科技/体育/财经等）"
+page: "可选 - 页码，默认为1"
+size: "可选 - 每页数量，默认为10"
+responseParams:
+success:
+status_code: 200
+response_body:
+content:
+- id: 1
+  title: "全球气候峰会召开"
+  source: "新华社"
+  publishedAt: "2023-10-15T10:00:00Z"
+  summary: "全球气候峰会于今日在北京举行..."
+totalElements: 100
+totalPages: 10
+number: 0
+error:
+status_code: 500
+response_body:
+error: "FETCH_NEWS_FAILED"
+message: "无法从第三方源获取新闻数据"
+apiType: entity_related
+controller: NewsController
+basePath: /api/news
+

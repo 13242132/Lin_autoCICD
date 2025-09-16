@@ -1,0 +1,33 @@
+
+
+basicInfo: 获取新闻详情 GET /api/news/{id} - 查询单条新闻及其关联信息
+requestParams:
+id: "路径参数 - 新闻ID"
+responseParams:
+success:
+status_code: 200
+response_body:
+id: 1
+title: "全球气候峰会召开"
+source: "新华社"
+publishedAt: "2023-10-15T10:00:00Z"
+summary: "全球气候峰会于今日在北京举行..."
+url: "https://example.com/news/1"
+imageUrl: "https://example.com/image.jpg"
+comments:
+  - id: 1
+    userId: 1001
+    content: "这个议题非常重要，希望各国能真正落实承诺！"
+    createdAt: "2023-10-15T10:10:00Z"
+likesCount: 25
+isLiked: true
+error:
+status_code: 404
+response_body:
+error: "NEWS_NOT_FOUND"
+message: "新闻不存在"
+apiType: entity_related
+controller: NewsController
+basePath: /api/news
+
+

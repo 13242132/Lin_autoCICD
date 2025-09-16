@@ -1,0 +1,26 @@
+
+
+basicInfo: 发送任务通知 POST /api/business/notify - 向用户推送任务相关通知
+
+requestParams:
+userId: 1
+type: "task_assigned" // 枚举：task_assigned, status_changed, deadline_reminder
+content: "您被分配了一个新任务：“完成项目文档”"
+
+responseParams:
+success:
+status_code: 200
+response_body:
+notificationId: "notif_1001"
+status: "sent"
+sentAt: "2025-04-05 10:30:00"
+error:
+status_code: 500
+response_body:
+error: "NOTIFICATION_SEND_FAILED"
+message: "通知服务不可用"
+
+apiType: business_related
+controller: NotifyController
+basePath: /api/business/notify
+

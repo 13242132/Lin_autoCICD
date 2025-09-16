@@ -1,0 +1,332 @@
+### ---AUTH_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: AuthController
+service: AuthService
+repository: AuthRepository
+util: JwtUtil
+interceptor: JwtInterceptor
+config: WebConfig
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.auth.repository;
+
+import com.example.demo.entity.Member;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AuthRepository extends JpaRepository<Member, Long> {
+    Optional<Member> findByPhone(String phone);
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.auth.service;
+
+import com.example.demo.auth.repository.AuthRepository;
+import com.example.demo.auth.util.JwtUtil;
+import com.example.demo.entity.Member;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private AuthRepository authRepository;
+
+    public Map<String, Object> register(String phone, String password, String confirmPassword, String code, Boolean agreeTerms) {
+        // 验证密码确认
+        if (!password.equals(confirmPassword)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码和确认密码不一致");
+        }
+
+        // 验证是否同意条款
+        if (!agreeTerms) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请同意用户协议");
+        }
+
+        // 检查手机号是否已存在
+        Optional<Member> existingMember = authRepository.findByPhone(phone);
+        if (existingMember.isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "注册失败，手机号已存在");
+        }
+
+        // 创建新会员
+        Member member = new Member();
+        member.setPhone(phone);
+        member.setPassword(password); // 注意：实际项目中应该加密存储
+        member.setNickname("用户" + phone);
+        member.setStatus("正常");
+        member.setRegisterTime(LocalDate.now());
+        member.setCreatedAt(LocalDateTime.now());
+
+        Member savedMember = authRepository.save(member);
+
+        // 返回注册结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", savedMember.getId());
+        result.put("phone", savedMember.getPhone());
+        result.put("nickname", savedMember.getNickname());
+        result.put("status", savedMember.getStatus());
+        result.put("createdAt", savedMember.getCreatedAt());
+
+        return result;
+    }
+
+    public Map<String, Object> login(String phone, String password, Boolean rememberMe) {
+        Optional<Member> memberOptional = authRepository.findByPhone(phone);
+        
+        if (memberOptional.isEmpty() || !memberOptional.get().getPassword().equals(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "手机号或密码错误");
+        }
+
+        Member member = memberOptional.get();
+
+        // 生成token
+        String token = JwtUtil.generateToken(phone);
+
+        // 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        
+        Map<String, Object> memberInfo = new HashMap<>();
+        memberInfo.put("id", member.getId());
+        memberInfo.put("phone", member.getPhone());
+        memberInfo.put("nickname", member.getNickname());
+        memberInfo.put("status", member.getStatus());
+        
+        result.put("member", memberInfo);
+
+        return result;
+    }
+
+    public Map<String, Object> getCurrentUser(String phone) {
+        Optional<Member> memberOptional = authRepository.findByPhone(phone);
+        
+        if (memberOptional.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户不存在");
+        }
+
+        Member member = memberOptional.get();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", member.getId());
+        result.put("phone", member.getPhone());
+        result.put("nickname", member.getNickname());
+        result.put("status", member.getStatus());
+        result.put("createdAt", member.getCreatedAt());
+
+        return result;
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.auth.controller;
+
+import com.example.demo.auth.service.AuthService;
+import com.example.demo.auth.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, Object> request) {
+        try {
+            String phone = (String) request.get("phone");
+            String password = (String) request.get("password");
+            String confirmPassword = (String) request.get("confirmPassword");
+            String code = (String) request.get("code");
+            Boolean agreeTerms = (Boolean) request.get("agreeTerms");
+
+            Map<String, Object> result = authService.register(phone, password, confirmPassword, code, agreeTerms);
+            return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        } catch (Exception e) {
+            Map<String, String> error = Map.of(
+                "error", "REGISTER_FAILED",
+                "message", e.getMessage()
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, Object> request) {
+        try {
+            String phone = (String) request.get("phone");
+            String password = (String) request.get("password");
+            Boolean rememberMe = (Boolean) request.get("rememberMe");
+
+            Map<String, Object> result = authService.login(phone, password, rememberMe);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, String> error = Map.of(
+                "error", "LOGIN_FAILED",
+                "message", e.getMessage()
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String token = authHeader.substring(7);
+            String phone = JwtUtil.getUsernameFromToken(token);
+
+            Map<String, Object> result = authService.getCurrentUser(phone);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---UTIL_START---
+package com.example.demo.auth.util;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import java.util.Base64;
+import java.util.Date;
+import javax.crypto.SecretKey;
+
+public class JwtUtil {
+
+    private static final String SECRET_KEY = "dGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEydGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEydGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEy";
+    private static final long EXPIRATION_TIME = 86400000; // 24小时
+
+    private static SecretKey getSigningKey() {
+        byte[] keyBytes = Base64.getDecoder().decode(SECRET_KEY);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public static String generateToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    public static String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+
+    public static boolean isTokenExpired(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+}
+### ---UTIL_END---
+
+### ---INTERCEPTOR_START---
+package com.example.demo.auth.interceptor;
+
+import com.example.demo.auth.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+@Component
+public class JwtInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 跳过OPTIONS请求
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
+        String authHeader = request.getHeader("Authorization");
+        
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
+
+        String token = authHeader.substring(7);
+        
+        try {
+            if (JwtUtil.isTokenExpired(token)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
+    }
+}
+### ---INTERCEPTOR_END---
+
+### ---CONFIG_START---
+package com.example.demo.auth.config;
+
+import com.example.demo.auth.interceptor.JwtInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    private final JwtInterceptor jwtInterceptor;
+
+    @Autowired
+    public WebConfig(JwtInterceptor jwtInterceptor) {
+        this.jwtInterceptor = jwtInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(jwtInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+    }
+}
+### ---CONFIG_END---

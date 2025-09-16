@@ -1,0 +1,288 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: SubscriptionController
+service: SubscriptionService
+repository: SubscriptionRepository
+requestClasses: SubscriptionRequests
+responseClasses: SubscriptionResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Subscription;
+
+@Repository
+public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+    
+    // 单表：根据用户ID查询订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId")
+    List<Subscription> findByUserId(@Param("userId") Long userId);
+    
+    // 单表：根据用户ID和主题名查询订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId AND s.topicName = :topicName")
+    Optional<Subscription> findByUserIdAndTopicName(@Param("userId") Long userId, @Param("topicName") String topicName);
+    
+    // 单表：根据用户ID删除所有订阅记录
+    @Query("DELETE FROM Subscription s WHERE s.userId = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
+    
+    // 单表：统计用户订阅数
+    @Query("SELECT COUNT(s) FROM Subscription s WHERE s.userId = :userId")
+    long countByUserId(@Param("userId") Long userId);
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import java.util.List;
+
+public class SubscriptionRequests {
+    
+    public static class UpdateSubscriptionsRequest {
+        private List<String> topicNames;
+        
+        public UpdateSubscriptionsRequest(List<String> topicNames) {
+            this.topicNames = topicNames;
+        }
+        
+        public List<String> getTopicNames() {
+            return topicNames;
+        }
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Subscription;
+import com.example.demo.entity.User;
+import com.example.demo.exception.MaxSubscriptionsExceededException;
+import com.example.demo.exception.UnauthorizedException;
+import com.example.demo.repository.SubscriptionRepository;
+import com.example.demo.repository.UserRepository;
+
+@Service
+public class SubscriptionService {
+    
+    private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository userRepository;
+    
+    public SubscriptionService(SubscriptionRepository subscriptionRepository, UserRepository userRepository) {
+        this.subscriptionRepository = subscriptionRepository;
+        this.userRepository = userRepository;
+    }
+    
+    // 获取用户订阅主题列表
+    public List<Subscription> getSubscriptions(Long userId) {
+        // 假设已验证用户身份，直接查询
+        return subscriptionRepository.findByUserId(userId);
+    }
+    
+    // 创建/更新用户订阅
+    public UpdateSubscriptionsResponse updateSubscriptions(Long userId, List<String> topicNames) {
+        // 检查最大订阅数限制
+        long currentCount = subscriptionRepository.countByUserId(userId);
+        if (currentCount + topicNames.size() > 5) {
+            throw new MaxSubscriptionsExceededException("最多可订阅5个主题");
+        }
+        
+        // 删除旧订阅
+        subscriptionRepository.deleteByUserId(userId);
+        
+        // 添加新订阅
+        for (String topicName : topicNames) {
+            Subscription subscription = new Subscription();
+            subscription.setUserId(userId);
+            subscription.setTopicName(topicName);
+            subscription.setSubscribedAt(LocalDateTime.now());
+            subscriptionRepository.save(subscription);
+        }
+        
+        return new UpdateSubscriptionsResponse("订阅更新成功", topicNames.size());
+    }
+    
+    // 用于测试时注入UserRepository
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+    
+    // 响应结果类
+    public static class UpdateSubscriptionsResponse {
+        private String message;
+        private int updatedCount;
+        
+        public UpdateSubscriptionsResponse(String message, int updatedCount) {
+            this.message = message;
+            this.updatedCount = updatedCount;
+        }
+        
+        public String getMessage() {
+            return message;
+        }
+        
+        public int getUpdatedCount() {
+            return updatedCount;
+        }
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public class SubscriptionResponses {
+    
+    public static class SubscriptionItem {
+        private Long id;
+        private String topicName;
+        private LocalDateTime subscribedAt;
+        
+        public SubscriptionItem(Long id, String topicName, LocalDateTime subscribedAt) {
+            this.id = id;
+            this.topicName = topicName;
+            this.subscribedAt = subscribedAt;
+        }
+        
+        public Long getId() {
+            return id;
+        }
+        
+        public String getTopicName() {
+            return topicName;
+        }
+        
+        public LocalDateTime getSubscribedAt() {
+            return subscribedAt;
+        }
+    }
+    
+    public static class UpdateSubscriptionsResponse {
+        private String message;
+        private int updatedCount;
+        
+        public UpdateSubscriptionsResponse(String message, int updatedCount) {
+            this.message = message;
+            this.updatedCount = updatedCount;
+        }
+        
+        public String getMessage() {
+            return message;
+        }
+        
+        public int getUpdatedCount() {
+            return updatedCount;
+        }
+    }
+    
+    public static class ErrorResponse {
+        private String error;
+        private String message;
+        
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+        
+        public String getError() {
+            return error;
+        }
+        
+        public String getMessage() {
+            return message;
+        }
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.auth.annotation.CurrentUserId;
+import com.example.demo.entity.Subscription;
+import com.example.demo.exception.MaxSubscriptionsExceededException;
+import com.example.demo.exception.UnauthorizedException;
+import com.example.demo.request.SubscriptionRequests;
+import com.example.demo.response.SubscriptionResponses;
+import com.example.demo.service.SubscriptionService;
+
+@RestController
+@RequestMapping("/api/subscriptions")
+public class SubscriptionController {
+    
+    private final SubscriptionService subscriptionService;
+    
+    public SubscriptionController(SubscriptionService subscriptionService) {
+        this.subscriptionService = subscriptionService;
+    }
+    
+    // 获取用户订阅主题列表
+    @GetMapping
+    public ResponseEntity<List<SubscriptionResponses.SubscriptionItem>> getSubscriptions(
+            @CurrentUserId Long userId) {
+        try {
+            List<Subscription> subscriptions = subscriptionService.getSubscriptions(userId);
+            
+            // 构造响应对象
+            List<SubscriptionResponses.SubscriptionItem> responseItems = subscriptions.stream()
+                    .map(sub -> new SubscriptionResponses.SubscriptionItem(
+                            sub.getId(),
+                            sub.getTopicName(),
+                            sub.getSubscribedAt()))
+                    .toList();
+            
+            return ResponseEntity.ok(responseItems);
+        } catch (UnauthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(List.of(new SubscriptionResponses.ErrorResponse("UNAUTHORIZED", "用户未登录")));
+        }
+    }
+    
+    // 创建/更新用户订阅
+    @PutMapping
+    public ResponseEntity<?> updateSubscriptions(
+            @CurrentUserId Long userId,
+            @RequestBody SubscriptionRequests.UpdateSubscriptionsRequest request) {
+        try {
+            SubscriptionService.UpdateSubscriptionsResponse response = 
+                subscriptionService.updateSubscriptions(userId, request.getTopicNames());
+            
+            return ResponseEntity.ok(response);
+        } catch (MaxSubscriptionsExceededException e) {
+            return ResponseEntity.badRequest()
+                    .body(new SubscriptionResponses.ErrorResponse("MAX_SUBSCRIPTIONS_EXCEEDED", e.getMessage()));
+        } catch (UnauthorizedException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new SubscriptionResponses.ErrorResponse("UNAUTHORIZED", "用户未登录"));
+        }
+    }
+}
+### ---CONTROLLER_END---

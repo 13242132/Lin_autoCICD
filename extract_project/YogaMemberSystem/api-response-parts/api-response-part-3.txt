@@ -1,0 +1,38 @@
+
+
+// 第3个接口
+basicInfo: 获取课程列表 GET /api/courses - 查询可预约课程
+requestParams:
+date: "可选 - 筛选日期，格式：yyyy-MM-dd"
+keyword: "可选 - 搜索关键词"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    - id: 1001
+      name: "基础瑜伽入门"
+      coach: "张老师"
+      startTime: "2024-10-16 18:00:00"
+      endTime: "2024-10-16 19:00:00"
+      totalSlots: 10
+      availableSlots: 8
+      status: "可预约"
+    - id: 1002
+      name: "流瑜伽进阶"
+      coach: "李老师"
+      startTime: "2024-10-16 19:30:00"
+      endTime: "2024-10-16 20:30:00"
+      totalSlots: 10
+      availableSlots: 0
+      status: "已满员"
+error:
+  status_code: 500
+  response_body:
+    error: "INTERNAL_ERROR"
+    message: "服务器内部错误"
+apiType: entity_related
+controller: CourseController
+basePath: /api/courses
+

@@ -1,0 +1,23 @@
+
+
+basicInfo: 创建/更新用户订阅 PUT /api/subscriptions - 设置用户感兴趣的新闻主题
+
+requestParams:
+topicNames: ["科技", "体育", "财经"]
+
+responseParams:
+success:
+status_code: 200
+response_body:
+message: "订阅更新成功"
+updatedCount: 3
+error:
+status_code: 400
+response_body:
+error: "MAX_SUBSCRIPTIONS_EXCEEDED"
+message: "最多可订阅5个主题"
+
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/subscriptions
+

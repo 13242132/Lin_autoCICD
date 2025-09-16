@@ -1,0 +1,219 @@
+// Class: Member
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.*;
+import java.math.*;
+import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "member_tbl")
+public class Member {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "phone", nullable = false, length = 11, unique = true)
+    private String phone;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "nickname", nullable = false, length = 50)
+    private String nickname;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "register_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    private LocalDate registerTime;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+}
+
+// ---ENTITY_BOUNDARY---
+// Class: Course
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.*;
+import java.math.*;
+import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "course_tbl")
+public class Course {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "name", nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "coach", nullable = false, length = 50)
+    private String coach;
+
+    @Column(name = "start_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime endTime;
+
+    @Column(name = "total_slots", nullable = false)
+    private Integer totalSlots;
+
+    @Column(name = "available_slots", nullable = false)
+    private Integer availableSlots;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+}
+
+// ---ENTITY_BOUNDARY---
+// Class: Appointment
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.*;
+import java.math.*;
+import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "appointment_tbl")
+public class Appointment {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "appointment_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime appointmentTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+}
+
+// ---ENTITY_BOUNDARY---
+// Class: CheckIn
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.*;
+import java.math.*;
+import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "check_in_tbl")
+public class CheckIn {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "check_in_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime checkInTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+}
+
+// ---ENTITY_BOUNDARY---
+// Class: MembershipCard
+package com.example.demo.entity;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.*;
+import java.math.*;
+import java.io.Serializable;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "membership_card_tbl")
+public class MembershipCard {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "card_number", nullable = false, length = 20, unique = true)
+    private String cardNumber;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "status_update_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime statusUpdateTime = LocalDateTime.now();
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+}

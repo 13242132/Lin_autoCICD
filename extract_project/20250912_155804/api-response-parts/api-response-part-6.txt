@@ -1,0 +1,31 @@
+
+
+basicInfo: 获取推荐新闻列表 GET /api/news/recommended - 根据用户订阅偏好获取个性化推荐新闻
+
+requestParams:
+(no parameters)
+
+responseParams:
+success:
+status_code: 200
+response_body:
+[
+{
+id: 201
+title: "AI技术新突破"
+source: "科技日报"
+publishedAt: "2023-10-15T11:30:00Z"
+summary: "新一代人工智能模型发布..."
+relevanceScore: 0.95
+}
+]
+error:
+status_code: 401
+response_body:
+error: "UNAUTHORIZED"
+message: "用户未登录时返回默认热门新闻"
+
+apiType: business_related
+controller: RecommendationController
+basePath: /api/news/recommended
+

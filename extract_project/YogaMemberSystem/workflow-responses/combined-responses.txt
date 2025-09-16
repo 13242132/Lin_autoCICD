@@ -1,0 +1,1141 @@
+### ---AUTH_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: AuthController
+service: AuthService
+repository: AuthRepository
+util: JwtUtil
+interceptor: JwtInterceptor
+config: WebConfig
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.auth.repository;
+
+import com.example.demo.entity.Member;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AuthRepository extends JpaRepository<Member, Long> {
+    Optional<Member> findByPhone(String phone);
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.auth.service;
+
+import com.example.demo.auth.repository.AuthRepository;
+import com.example.demo.auth.util.JwtUtil;
+import com.example.demo.entity.Member;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private AuthRepository authRepository;
+
+    public Map<String, Object> register(String phone, String password, String confirmPassword, String code, Boolean agreeTerms) {
+        // 验证密码确认
+        if (!password.equals(confirmPassword)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码和确认密码不一致");
+        }
+
+        // 验证是否同意条款
+        if (!agreeTerms) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请同意用户协议");
+        }
+
+        // 检查手机号是否已存在
+        Optional<Member> existingMember = authRepository.findByPhone(phone);
+        if (existingMember.isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "注册失败，手机号已存在");
+        }
+
+        // 创建新会员
+        Member member = new Member();
+        member.setPhone(phone);
+        member.setPassword(password); // 注意：实际项目中应该加密存储
+        member.setNickname("用户" + phone);
+        member.setStatus("正常");
+        member.setRegisterTime(LocalDate.now());
+        member.setCreatedAt(LocalDateTime.now());
+
+        Member savedMember = authRepository.save(member);
+
+        // 返回注册结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", savedMember.getId());
+        result.put("phone", savedMember.getPhone());
+        result.put("nickname", savedMember.getNickname());
+        result.put("status", savedMember.getStatus());
+        result.put("createdAt", savedMember.getCreatedAt());
+
+        return result;
+    }
+
+    public Map<String, Object> login(String phone, String password, Boolean rememberMe) {
+        Optional<Member> memberOptional = authRepository.findByPhone(phone);
+        
+        if (memberOptional.isEmpty() || !memberOptional.get().getPassword().equals(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "手机号或密码错误");
+        }
+
+        Member member = memberOptional.get();
+
+        // 生成token
+        String token = JwtUtil.generateToken(phone);
+
+        // 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        
+        Map<String, Object> memberInfo = new HashMap<>();
+        memberInfo.put("id", member.getId());
+        memberInfo.put("phone", member.getPhone());
+        memberInfo.put("nickname", member.getNickname());
+        memberInfo.put("status", member.getStatus());
+        
+        result.put("member", memberInfo);
+
+        return result;
+    }
+
+    public Map<String, Object> getCurrentUser(String phone) {
+        Optional<Member> memberOptional = authRepository.findByPhone(phone);
+        
+        if (memberOptional.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户不存在");
+        }
+
+        Member member = memberOptional.get();
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", member.getId());
+        result.put("phone", member.getPhone());
+        result.put("nickname", member.getNickname());
+        result.put("status", member.getStatus());
+        result.put("createdAt", member.getCreatedAt());
+
+        return result;
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.auth.controller;
+
+import com.example.demo.auth.service.AuthService;
+import com.example.demo.auth.util.JwtUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, Object> request) {
+        try {
+            String phone = (String) request.get("phone");
+            String password = (String) request.get("password");
+            String confirmPassword = (String) request.get("confirmPassword");
+            String code = (String) request.get("code");
+            Boolean agreeTerms = (Boolean) request.get("agreeTerms");
+
+            Map<String, Object> result = authService.register(phone, password, confirmPassword, code, agreeTerms);
+            return ResponseEntity.status(HttpStatus.CREATED).body(result);
+        } catch (Exception e) {
+            Map<String, String> error = Map.of(
+                "error", "REGISTER_FAILED",
+                "message", e.getMessage()
+            );
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody Map<String, Object> request) {
+        try {
+            String phone = (String) request.get("phone");
+            String password = (String) request.get("password");
+            Boolean rememberMe = (Boolean) request.get("rememberMe");
+
+            Map<String, Object> result = authService.login(phone, password, rememberMe);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, String> error = Map.of(
+                "error", "LOGIN_FAILED",
+                "message", e.getMessage()
+            );
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String token = authHeader.substring(7);
+            String phone = JwtUtil.getUsernameFromToken(token);
+
+            Map<String, Object> result = authService.getCurrentUser(phone);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---UTIL_START---
+package com.example.demo.auth.util;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
+import java.util.Base64;
+import java.util.Date;
+import javax.crypto.SecretKey;
+
+public class JwtUtil {
+
+    private static final String SECRET_KEY = "dGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEydGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEydGhpc2lzYXNlY3VyZWtleXRoYXRpc2V4YWN0bHk2NHllczEy";
+    private static final long EXPIRATION_TIME = 86400000; // 24小时
+
+    private static SecretKey getSigningKey() {
+        byte[] keyBytes = Base64.getDecoder().decode(SECRET_KEY);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public static String generateToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    public static String getUsernameFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+
+    public static boolean isTokenExpired(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+}
+### ---UTIL_END---
+
+### ---INTERCEPTOR_START---
+package com.example.demo.auth.interceptor;
+
+import com.example.demo.auth.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+@Component
+public class JwtInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        // 跳过OPTIONS请求
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
+        String authHeader = request.getHeader("Authorization");
+        
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
+
+        String token = authHeader.substring(7);
+        
+        try {
+            if (JwtUtil.isTokenExpired(token)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return false;
+        }
+    }
+}
+### ---INTERCEPTOR_END---
+
+### ---CONFIG_START---
+package com.example.demo.auth.config;
+
+import com.example.demo.auth.interceptor.JwtInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    private final JwtInterceptor jwtInterceptor;
+
+    @Autowired
+    public WebConfig(JwtInterceptor jwtInterceptor) {
+        this.jwtInterceptor = jwtInterceptor;
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(jwtInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+    }
+}
+### ---CONFIG_END---
+
+### ---CRUD_AI_OUTPUT_START---
+### ---CLASS_NAMES_START---
+controller: CourseController
+service: CourseService
+repository: CourseRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import com.example.demo.entity.Course;
+
+@Repository
+public interface CourseRepository extends JpaRepository<Course, Long> {
+    
+    // 单表：根据日期和关键词查询课程列表
+    @Query("SELECT c FROM Course c WHERE " +
+           "(:date IS NULL OR CAST(c.startTime AS localdate) = :date) AND " +
+           "(:keyword IS NULL OR c.name LIKE %:keyword% OR c.coach LIKE %:keyword%)")
+    List<Course> findCoursesByDateAndKeyword(@Param("date") LocalDate date, 
+                                            @Param("keyword") String keyword);
+    
+    // 单表：获取所有课程
+    default List<Course> findAllCourses() {
+        return findAll();
+    }
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import com.example.demo.entity.Course;
+import com.example.demo.repository.CourseRepository;
+
+@Service
+public class CourseService {
+    
+    private final CourseRepository repository;
+    
+    public CourseService(CourseRepository repository) {
+        this.repository = repository;
+    }
+    
+    // 调用数据库层：根据日期和关键词查询课程列表
+    public List<Course> getCourses(String dateStr, String keyword) {
+        LocalDate date = null;
+        if (dateStr != null && !dateStr.isEmpty()) {
+            date = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+        }
+        return repository.findCoursesByDateAndKeyword(date, keyword);
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import com.example.demo.entity.Course;
+import com.example.demo.service.CourseService;
+
+@RestController
+@RequestMapping("/api/courses")
+public class CourseController {
+    
+    private final CourseService service;
+    
+    public CourseController(CourseService service) {
+        this.service = service;
+    }
+    
+    // 获取课程列表
+    @GetMapping
+    public ResponseEntity<?> getCourses(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String keyword) {
+        
+        try {
+            List<Course> courses = service.getCourses(date, keyword);
+            return ResponseEntity.ok(courses);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("INTERNAL_ERROR", "服务器内部错误"));
+        }
+    }
+    
+    // 错误响应类
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+        
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+        
+        public String getError() { return error; }
+        public String getMessage() { return message; }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: AppointmentController
+service: AppointmentService
+repository: AppointmentRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.example.demo.entity.Appointment;
+
+@Repository
+public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
+    // 多表接口：获取我的预约，返回默认值
+    default List<Appointment> findMyAppointments(String status) {
+        return List.of();
+    }
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.List;
+import java.time.LocalDateTime;
+import org.springframework.stereotype.Service;
+import com.example.demo.entity.Appointment;
+import com.example.demo.repository.AppointmentRepository;
+
+@Service
+public class AppointmentService {
+    private final AppointmentRepository repository;
+
+    public AppointmentService(AppointmentRepository repository) {
+        this.repository = repository;
+    }
+
+    // 单表：创建预约
+    public Appointment createAppointment(Appointment appointment) {
+        appointment.setStatus("已预约");
+        appointment.setCreatedAt(LocalDateTime.now());
+        return repository.save(appointment);
+    }
+
+    // 多表接口：获取我的预约，返回默认值
+    public List<Appointment> getMyAppointments(String status) {
+        return repository.findMyAppointments(status);
+    }
+
+    // 单表：取消预约
+    public void cancelAppointment(Long id) {
+        repository.deleteById(id);
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import com.example.demo.entity.Appointment;
+import com.example.demo.service.AppointmentService;
+
+@RestController
+@RequestMapping("/api/appointments")
+public class AppointmentController {
+    private final AppointmentService service;
+
+    public AppointmentController(AppointmentService service) {
+        this.service = service;
+    }
+
+    // 课程预约
+    @PostMapping
+    public ResponseEntity<?> createAppointment(@RequestBody Appointment appointment) {
+        try {
+            Appointment created = service.createAppointment(appointment);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("APPOINTMENT_FAILED", "预约失败，课程已满或已预约"));
+        }
+    }
+
+    // 获取我的预约
+    @GetMapping("/my")
+    public ResponseEntity<?> getMyAppointments(@RequestParam(required = false) String status) {
+        try {
+            List<Appointment> appointments = service.getMyAppointments(status);
+            return ResponseEntity.ok(appointments);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("UNAUTHORIZED", "未授权访问"));
+        }
+    }
+
+    // 取消预约
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> cancelAppointment(@PathVariable Long id) {
+        try {
+            service.cancelAppointment(id);
+            return ResponseEntity.ok(new MessageResponse("预约取消成功"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("CANCEL_FAILED", "取消失败，已超过可取消时间"));
+        }
+    }
+
+    // 错误响应类
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+
+    // 成功消息响应类
+    private static class MessageResponse {
+        private String message;
+
+        public MessageResponse(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: CheckInController
+service: CheckInService
+repository: CheckInRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import com.example.demo.entity.CheckIn;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
+    // 单表：根据课程ID和会员ID查询签到记录
+    Optional<CheckIn> findByCourseIdAndMemberId(Long courseId, Long memberId);
+    
+    // 单表：插入签到记录
+    default CheckIn insert(CheckIn entity) {
+        return save(entity);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import com.example.demo.entity.CheckIn;
+import com.example.demo.repository.CheckInRepository;
+import org.springframework.stereotype.Service;
+import java.util.Optional;
+
+@Service
+public class CheckInService {
+    private final CheckInRepository repository;
+
+    public CheckInService(CheckInRepository repository) {
+        this.repository = repository;
+    }
+
+    // 创建签到记录
+    public CheckIn createCheckIn(CheckIn checkIn) {
+        // 检查是否已签到（单表查询）
+        Optional<CheckIn> existing = repository.findByCourseIdAndMemberId(checkIn.getCourseId(), checkIn.getMemberId());
+        if (existing.isPresent()) {
+            throw new RuntimeException("CHECKIN_FAILED"); // 模拟已签到错误
+        }
+        // 忽略未预约检查，直接设置状态并保存
+        checkIn.setStatus("已签到");
+        return repository.insert(checkIn);
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import com.example.demo.entity.CheckIn;
+import com.example.demo.service.CheckInService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/checkins")
+public class CheckInController {
+    private final CheckInService service;
+
+    public CheckInController(CheckInService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createCheckIn(@RequestBody CheckIn checkIn) {
+        try {
+            CheckIn created = service.createCheckIn(checkIn);
+            return ResponseEntity.ok(created);
+        } catch (RuntimeException e) {
+            if ("CHECKIN_FAILED".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse("CHECKIN_FAILED", "签到失败，未预约或已签到"));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new ErrorResponse("INTERNAL_ERROR", e.getMessage()));
+            }
+        }
+    }
+
+    // 错误响应类
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---CRUD_AI_OUTPUT_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: MembershipCardController
+service: MembershipCardService
+repository: MembershipCardRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.example.demo.entity.MembershipCard;
+
+@Repository
+public interface MembershipCardRepository extends JpaRepository<MembershipCard, Long> {
+    Optional<MembershipCard> findByCardNumber(String cardNumber);
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import com.example.demo.entity.MembershipCard;
+import com.example.demo.repository.MembershipCardRepository;
+
+@Service
+public class MembershipCardService {
+
+    public static class MembershipCardListItem {
+        private String cardNumber;
+        private String memberName;
+        private String status;
+        private String statusUpdateTime;
+
+        public MembershipCardListItem(String cardNumber, String memberName, String status, String statusUpdateTime) {
+            this.cardNumber = cardNumber;
+            this.memberName = memberName;
+            this.status = status;
+            this.statusUpdateTime = statusUpdateTime;
+        }
+
+        public String getCardNumber() { return cardNumber; }
+        public String getMemberName() { return memberName; }
+        public String getStatus() { return status; }
+        public String getStatusUpdateTime() { return statusUpdateTime; }
+    }
+
+    public static class MembershipCardStatusUpdateResponse {
+        private String cardNumber;
+        private String status;
+        private String statusUpdateTime;
+
+        public MembershipCardStatusUpdateResponse(String cardNumber, String status, String statusUpdateTime) {
+            this.cardNumber = cardNumber;
+            this.status = status;
+            this.statusUpdateTime = statusUpdateTime;
+        }
+
+        public String getCardNumber() { return cardNumber; }
+        public String getStatus() { return status; }
+        public String getStatusUpdateTime() { return statusUpdateTime; }
+    }
+
+    private final MembershipCardRepository repository;
+
+    public MembershipCardService(MembershipCardRepository repository) {
+        this.repository = repository;
+    }
+
+    public List<MembershipCardListItem> listMembershipCards(String keyword) {
+        return List.of();
+    }
+
+    public MembershipCardStatusUpdateResponse updateMembershipCardStatus(String cardNumber, String status) {
+        Optional<MembershipCard> optionalCard = repository.findByCardNumber(cardNumber);
+        if (optionalCard.isPresent()) {
+            MembershipCard card = optionalCard.get();
+            card.setStatus(status);
+            card.setStatusUpdateTime(java.time.LocalDateTime.now());
+            repository.save(card);
+            String statusUpdateTimeStr = card.getStatusUpdateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            return new MembershipCardStatusUpdateResponse(card.getCardNumber(), card.getStatus(), statusUpdateTimeStr);
+        } else {
+            return null;
+        }
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import com.example.demo.service.MembershipCardService;
+
+@RestController
+@RequestMapping("/api/membership-cards")
+public class MembershipCardController {
+
+    private final MembershipCardService service;
+
+    public MembershipCardController(MembershipCardService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ResponseEntity<?> listMembershipCards(@RequestParam(required = false) String keyword) {
+        List<MembershipCardService.MembershipCardListItem> list = service.listMembershipCards(keyword);
+        return ResponseEntity.ok(list);
+    }
+
+    @PutMapping("/{cardNumber}/status")
+    public ResponseEntity<?> updateMembershipCardStatus(@PathVariable String cardNumber, @RequestBody String status) {
+        MembershipCardService.MembershipCardStatusUpdateResponse response = service.updateMembershipCardStatus(cardNumber, status);
+        if (response != null) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("STATUS_UPDATE_FAILED", "状态更新失败，无效的状态值"));
+        }
+    }
+
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+
+        public String getError() { return error; }
+        public String getMessage() { return message; }
+    }
+}
+### ---CONTROLLER_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: MemberController
+service: MemberService
+repository: MemberRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.example.demo.entity.Member;
+
+@Repository
+public interface MemberRepository extends JpaRepository<Member, Long> {
+    // 多表接口：获取会员信息及卡片详情，返回默认空值
+    default Optional<Member> findMemberWithCardById(Long id) {
+        return Optional.empty();
+    }
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import com.example.demo.entity.Member;
+import com.example.demo.repository.MemberRepository;
+
+@Service
+public class MemberService {
+    private final MemberRepository repository;
+
+    public MemberService(MemberRepository repository) {
+        this.repository = repository;
+    }
+
+    // 多表接口：获取会员信息及卡片详情，返回默认空值
+    public Optional<MemberDetailDTO> getMemberByIdWithDetails(Long id) {
+        // 调用Repository方法，返回Optional.empty()
+        repository.findMemberWithCardById(id); // 调用但忽略结果，直接返回空
+        return Optional.empty();
+    }
+
+    // 自定义DTO类用于响应
+    public static class MemberDetailDTO {
+        private Long id;
+        private String phone;
+        private String nickname;
+        private String status;
+        private String registerTime;
+        private String cardNumber;
+        private String cardStatus;
+
+        public MemberDetailDTO(Long id, String phone, String nickname, String status, String registerTime, String cardNumber, String cardStatus) {
+            this.id = id;
+            this.phone = phone;
+            this.nickname = nickname;
+            this.status = status;
+            this.registerTime = registerTime;
+            this.cardNumber = cardNumber;
+            this.cardStatus = cardStatus;
+        }
+
+        // Getters
+        public Long getId() { return id; }
+        public String getPhone() { return phone; }
+        public String getNickname() { return nickname; }
+        public String getStatus() { return status; }
+        public String getRegisterTime() { return registerTime; }
+        public String getCardNumber() { return cardNumber; }
+        public String getCardStatus() { return cardStatus; }
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.Optional;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import com.example.demo.service.MemberService;
+
+@RestController
+@RequestMapping("/api/members")
+public class MemberController {
+    private final MemberService service;
+
+    public MemberController(MemberService service) {
+        this.service = service;
+    }
+
+    // 获取会员信息
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getMemberById(@PathVariable Long id) {
+        Optional<MemberService.MemberDetailDTO> memberDetail = service.getMemberByIdWithDetails(id);
+        if (memberDetail.isPresent()) {
+            return ResponseEntity.ok(memberDetail.get());
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse("MEMBER_NOT_FOUND", "会员不存在"));
+        }
+    }
+
+    // 错误响应类
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+
+        public String getError() { return error; }
+        public String getMessage() { return message; }
+    }
+}
+### ---CONTROLLER_END---
+
+
+
+---ENTITY_LIST_START---
+@Table(name = "member_tbl")
+public class Member {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "phone", nullable = false, length = 11, unique = true)
+    private String phone;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "nickname", nullable = false, length = 50)
+    private String nickname;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "register_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
+    private LocalDate registerTime;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "course_tbl")
+public class Course {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "name", nullable = false, length = 100)
+    private String name;
+
+    @Column(name = "coach", nullable = false, length = 50)
+    private String coach;
+
+    @Column(name = "start_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime startTime;
+
+    @Column(name = "end_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime endTime;
+
+    @Column(name = "total_slots", nullable = false)
+    private Integer totalSlots;
+
+    @Column(name = "available_slots", nullable = false)
+    private Integer availableSlots;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "appointment_tbl")
+public class Appointment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "appointment_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime appointmentTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "check_in_tbl")
+public class CheckIn {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "course_id", nullable = false)
+    private Long courseId;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "check_in_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime checkInTime;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "membership_card_tbl")
+public class MembershipCard {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "card_number", nullable = false, length = 20, unique = true)
+    private String cardNumber;
+
+    @Column(name = "member_id", nullable = false)
+    private Long memberId;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "status_update_time", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime statusUpdateTime = LocalDateTime.now();
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+---ENTITY_LIST_END---

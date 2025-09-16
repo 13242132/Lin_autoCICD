@@ -1,0 +1,212 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: NewsController
+service: NewsService
+repository: NewsRepository
+requestClasses: NewsRequests
+responseClasses: NewsResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.News;
+
+@Repository
+public interface NewsRepository extends JpaRepository<News, Long> {
+
+    // 单表：根据分类查询新闻列表
+    @Query("SELECT n FROM News n WHERE (:category IS NULL OR n.source = :category)")
+    Page<News> findByCategory(@Param("category") String category, Pageable pageable);
+
+    // 单表：根据ID查询新闻
+    @Query("SELECT n FROM News n WHERE n.id = :id")
+    Optional<News> findById(@Param("id") Long id);
+
+    // 单表：查询所有新闻
+    @Query("SELECT n FROM News n")
+    Page<News> findAll(Pageable pageable);
+
+    // 单表：插入新闻
+    default News insert(News entity) {
+        return save(entity);
+    }
+
+    // 单表：删除新闻
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListRequest {
+        private String category;
+        private Integer page = 1;
+        private Integer size = 10;
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.News;
+import com.example.demo.repository.NewsRepository;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@Service
+public class NewsService {
+
+    private final NewsRepository repository;
+
+    public NewsService(NewsRepository repository) {
+        this.repository = repository;
+    }
+
+    // 调用数据库层：获取新闻列表
+    public NewsResponses.GetNewsListResponse getNewsList(NewsRequests.GetNewsListRequest request) {
+        // 构造分页请求
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+
+        // 根据分类筛选新闻
+        Page<News> newsPage = repository.findByCategory(request.getCategory(), pageable);
+
+        // 构建响应
+        NewsResponses.GetNewsListResponse response = new NewsResponses.GetNewsListResponse();
+        response.setNews(newsPage.getContent().stream()
+                .map(news -> {
+                    NewsResponses.NewsItem item = new NewsResponses.NewsItem();
+                    item.setId(news.getId());
+                    item.setTitle(news.getTitle());
+                    item.setSource(news.getSource());
+                    item.setPublishedAt(news.getPublishedAt());
+                    item.setSummary(news.getSummary());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        response.setTotal(newsPage.getTotalElements());
+        response.setPage(request.getPage());
+        response.setSize(request.getSize());
+        response.setTotalPages(newsPage.getTotalPages());
+
+        return response;
+    }
+
+    // 根据ID获取单条新闻
+    public News getNewsById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new BusinessException("NEWS_NOT_FOUND", "新闻不存在"));
+    }
+
+    // 获取所有新闻（无分页）
+    public List<News> getAllNews() {
+        return repository.findAll(Pageable.unpaged()).getContent();
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+import java.time.LocalDateTime;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NewsItem {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListResponse {
+        private List<NewsItem> news;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.service.NewsService;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@RestController
+@RequestMapping("/api/news")
+public class NewsController {
+
+    private final NewsService service;
+
+    public NewsController(NewsService service) {
+        this.service = service;
+    }
+
+    // 获取新闻列表
+    @GetMapping
+    public ResponseEntity<NewsResponses.GetNewsListResponse> getNewsList(
+            @RequestParam(required = false) String category,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        NewsRequests.GetNewsListRequest request = new NewsRequests.GetNewsListRequest(category, page, size);
+        NewsResponses.GetNewsListResponse response = service.getNewsList(request);
+        return ResponseEntity.ok(response);
+    }
+}
+### ---CONTROLLER_END---

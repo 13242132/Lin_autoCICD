@@ -1,0 +1,31 @@
+
+
+// 第5个接口
+basicInfo: 获取我的预约 GET /api/appointments/my - 查询当前用户的预约
+requestParams:
+status: "可选 - 预约状态筛选"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    - id: 1
+      courseName: "流瑜伽"
+      courseTime: "2024-10-16 18:00:00"
+      status: "已预约"
+      createdAt: "2024-10-15 14:30:00"
+    - id: 2
+      courseName: "空中瑜伽"
+      courseTime: "2024-10-18 19:30:00"
+      status: "已预约"
+      createdAt: "2024-10-15 15:20:00"
+error:
+  status_code: 401
+  response_body:
+    error: "UNAUTHORIZED"
+    message: "未授权访问"
+apiType: entity_related
+controller: AppointmentController
+basePath: /api/appointments
+

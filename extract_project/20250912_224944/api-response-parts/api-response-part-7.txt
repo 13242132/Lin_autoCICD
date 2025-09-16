@@ -1,0 +1,29 @@
+
+
+basicInfo: 获取用户列表 GET /api/users - 查询所有系统用户信息
+
+requestParams:
+role: "可选 - 用户角色过滤"
+
+responseParams:
+success:
+status_code: 200
+response_body:
+- id: 1
+  username: "zhangsan"
+  role: "项目经理"
+  createdAt: "2025-04-05 10:00:00"
+- id: 2
+  username: "lisi"
+  role: "团队成员"
+  createdAt: "2025-04-05 10:10:00"
+error:
+status_code: 500
+response_body:
+error: "INTERNAL_ERROR"
+message: "数据查询失败"
+
+apiType: entity_related
+controller: UserController
+basePath: /api/users
+

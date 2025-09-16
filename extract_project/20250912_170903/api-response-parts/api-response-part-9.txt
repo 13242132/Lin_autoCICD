@@ -1,0 +1,26 @@
+
+
+basicInfo: 更新用户阅读历史 POST /api/users/{userId}/history - 记录用户浏览的新闻
+requestParams:
+userId: "路径参数 - 用户ID"
+newsId: "请求体 - 新闻ID"
+readAt: "请求体 - 阅读时间"
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 1001
+userId: 1001
+newsId: 1
+title: "全球气候峰会召开"
+source: "新华社"
+readAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 400
+response_body:
+error: "INVALID_NEWS_ID"
+message: "新闻ID无效"
+apiType: entity_related
+controller: UserHistoryController
+basePath: /api/users/{userId}/history
+

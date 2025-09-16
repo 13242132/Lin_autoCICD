@@ -1,0 +1,152 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: MembershipCardController
+service: MembershipCardService
+repository: MembershipCardRepository
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.example.demo.entity.MembershipCard;
+
+@Repository
+public interface MembershipCardRepository extends JpaRepository<MembershipCard, Long> {
+    Optional<MembershipCard> findByCardNumber(String cardNumber);
+}
+### ---REPOSITORY_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.stereotype.Service;
+import com.example.demo.entity.MembershipCard;
+import com.example.demo.repository.MembershipCardRepository;
+
+@Service
+public class MembershipCardService {
+
+    public static class MembershipCardListItem {
+        private String cardNumber;
+        private String memberName;
+        private String status;
+        private String statusUpdateTime;
+
+        public MembershipCardListItem(String cardNumber, String memberName, String status, String statusUpdateTime) {
+            this.cardNumber = cardNumber;
+            this.memberName = memberName;
+            this.status = status;
+            this.statusUpdateTime = statusUpdateTime;
+        }
+
+        public String getCardNumber() { return cardNumber; }
+        public String getMemberName() { return memberName; }
+        public String getStatus() { return status; }
+        public String getStatusUpdateTime() { return statusUpdateTime; }
+    }
+
+    public static class MembershipCardStatusUpdateResponse {
+        private String cardNumber;
+        private String status;
+        private String statusUpdateTime;
+
+        public MembershipCardStatusUpdateResponse(String cardNumber, String status, String statusUpdateTime) {
+            this.cardNumber = cardNumber;
+            this.status = status;
+            this.statusUpdateTime = statusUpdateTime;
+        }
+
+        public String getCardNumber() { return cardNumber; }
+        public String getStatus() { return status; }
+        public String getStatusUpdateTime() { return statusUpdateTime; }
+    }
+
+    private final MembershipCardRepository repository;
+
+    public MembershipCardService(MembershipCardRepository repository) {
+        this.repository = repository;
+    }
+
+    public List<MembershipCardListItem> listMembershipCards(String keyword) {
+        return List.of();
+    }
+
+    public MembershipCardStatusUpdateResponse updateMembershipCardStatus(String cardNumber, String status) {
+        Optional<MembershipCard> optionalCard = repository.findByCardNumber(cardNumber);
+        if (optionalCard.isPresent()) {
+            MembershipCard card = optionalCard.get();
+            card.setStatus(status);
+            card.setStatusUpdateTime(java.time.LocalDateTime.now());
+            repository.save(card);
+            String statusUpdateTimeStr = card.getStatusUpdateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            return new MembershipCardStatusUpdateResponse(card.getCardNumber(), card.getStatus(), statusUpdateTimeStr);
+        } else {
+            return null;
+        }
+    }
+}
+### ---SERVICE_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import com.example.demo.service.MembershipCardService;
+
+@RestController
+@RequestMapping("/api/membership-cards")
+public class MembershipCardController {
+
+    private final MembershipCardService service;
+
+    public MembershipCardController(MembershipCardService service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public ResponseEntity<?> listMembershipCards(@RequestParam(required = false) String keyword) {
+        List<MembershipCardService.MembershipCardListItem> list = service.listMembershipCards(keyword);
+        return ResponseEntity.ok(list);
+    }
+
+    @PutMapping("/{cardNumber}/status")
+    public ResponseEntity<?> updateMembershipCardStatus(@PathVariable String cardNumber, @RequestBody String status) {
+        MembershipCardService.MembershipCardStatusUpdateResponse response = service.updateMembershipCardStatus(cardNumber, status);
+        if (response != null) {
+            return ResponseEntity.ok(response);
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ErrorResponse("STATUS_UPDATE_FAILED", "状态更新失败，无效的状态值"));
+        }
+    }
+
+    private static class ErrorResponse {
+        private String error;
+        private String message;
+
+        public ErrorResponse(String error, String message) {
+            this.error = error;
+            this.message = message;
+        }
+
+        public String getError() { return error; }
+        public String getMessage() { return message; }
+    }
+}
+### ---CONTROLLER_END---

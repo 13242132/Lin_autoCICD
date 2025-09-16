@@ -1,0 +1,27 @@
+
+basicInfo: 获取推荐新闻列表 GET /api/recommendations - 根据用户订阅偏好获取个性化推荐
+requestParams:
+userId: "必填 - 用户ID"
+responseParams:
+success:
+status_code: 200
+response_body:
+- id: 201
+  title: "AI技术新突破"
+  source: "科技日报"
+  publishedAt: "2023-10-15T09:30:00Z"
+  topic: "科技"
+- id: 202
+  title: "中国男篮晋级世界杯四强"
+  source: "腾讯体育"
+  publishedAt: "2023-10-15T08:45:00Z"
+  topic: "体育"
+error:
+status_code: 401
+response_body:
+error: "UNAUTHORIZED"
+message: "请先登录以获取个性化推荐"
+apiType: business_related
+controller: RecommendationController
+basePath: /api/business/recommendations
+

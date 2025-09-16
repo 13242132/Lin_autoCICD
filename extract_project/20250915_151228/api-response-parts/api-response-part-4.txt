@@ -1,0 +1,33 @@
+
+
+basicInfo: 创建新闻条目 POST /api/news - 添加新的新闻（编辑人员专用）
+requestParams:
+title: "全球AI技术峰会召开"
+source: "科技日报"
+publishedAt: "2023-10-15T11:00:00Z"
+summary: "本次峰会聚焦人工智能前沿技术..."
+url: "https://example.com/news/1"
+imageUrl: "https://example.com/image.jpg"
+categoryId: 1
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 2
+title: "全球AI技术峰会召开"
+source: "科技日报"
+publishedAt: "2023-10-15T11:00:00Z"
+summary: "本次峰会聚焦人工智能前沿技术..."
+url: "https://example.com/news/1"
+imageUrl: "https://example.com/image.jpg"
+categoryId: 1
+createdAt: "2023-10-15T11:05:00Z"
+error:
+status_code: 400
+response_body:
+error: "INVALID_DATA"
+message: "标题或来源不能为空"
+apiType: entity_related
+controller: NewsController
+basePath: /api/news
+

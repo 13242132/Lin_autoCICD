@@ -1,0 +1,14 @@
+{
+  "name": "getHotTopics",
+  "description": "获取当前热门新闻主题",
+  "steps": [
+    {
+      "type": "HTTP_REQUEST",
+      "method": "GET",
+      "url": "/api/topics/hot",
+      "params": {
+        "limit": 5
+      }
+    }
+  ]
+}

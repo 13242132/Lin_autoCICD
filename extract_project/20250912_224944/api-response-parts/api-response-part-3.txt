@@ -1,0 +1,33 @@
+
+
+basicInfo: 创建任务 POST /api/tasks - 创建并分配新任务
+
+requestParams:
+title: "完成项目文档"
+description: "需在周五前完成"
+priority: "medium"
+dueDate: "2025-04-12T18:00:00"
+assignee: "zhangsan"
+
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 101
+title: "完成项目文档"
+description: "需在周五前完成"
+priority: "medium"
+dueDate: "2025-04-12T18:00:00"
+assignee: "zhangsan"
+status: "未开始"
+createdAt: "2025-04-05 10:00:00"
+error:
+status_code: 400
+response_body:
+error: "TASK_CREATION_FAILED"
+message: "请选择优先级"
+
+apiType: entity_related
+controller: TaskController
+basePath: /api/tasks
+

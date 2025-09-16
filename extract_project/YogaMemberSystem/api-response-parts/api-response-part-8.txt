@@ -1,0 +1,25 @@
+
+
+// 第8个接口
+basicInfo: 更新会员卡状态 PUT /api/membership-cards/{cardNumber}/status - 变更会员卡状态
+requestParams:
+cardNumber: "YJ20241015001"
+status: "正常"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    cardNumber: "YJ20241015001"
+    status: "正常"
+    statusUpdateTime: "2024-10-15 18:00:00"
+error:
+  status_code: 400
+  response_body:
+    error: "STATUS_UPDATE_FAILED"
+    message: "状态更新失败，无效的状态值"
+apiType: entity_related
+controller: MembershipCardController
+basePath: /api/membership-cards
+

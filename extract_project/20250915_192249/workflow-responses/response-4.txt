@@ -1,0 +1,24 @@
+{
+  "workflow": {
+    "name": "getRecommendations",
+    "steps": [
+      {
+        "type": "HTTP_REQUEST",
+        "method": "GET",
+        "url": "/api/recommendations",
+        "queryParams": {
+          "userId": "${userId}"
+        }
+      },
+      {
+        "type": "VALIDATE_RESPONSE",
+        "expectedStatus": 200,
+        "onError": "RETRY"
+      },
+      {
+        "type": "LOG_RESULT",
+        "message": "Recommendation fetch completed for user: ${userId}"
+      }
+    ]
+  }
+}

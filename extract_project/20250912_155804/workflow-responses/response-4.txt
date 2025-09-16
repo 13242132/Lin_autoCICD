@@ -1,0 +1,25 @@
+{
+  "workflow": {
+    "name": "获取推荐新闻列表",
+    "steps": [
+      {
+        "step": 1,
+        "action": "验证用户身份",
+        "description": "检查请求头中的JWT token有效性，未登录则返回401错误"
+      },
+      {
+        "step": 2,
+        "action": "查询用户订阅偏好",
+        "description": "通过Subscription表获取当前用户订阅的topic_name列表"
+      },
+      {
+        "step": 3,
+        "action": "生成个性化推荐",
+        "description": "基于订阅偏好从News表中筛选匹配的新闻，按relevanceScore排序返回"
+      }
+    ],
+    "errorHandling": {
+      "401": "用户未认证时返回默认热门新闻列表"
+    }
+  }
+}

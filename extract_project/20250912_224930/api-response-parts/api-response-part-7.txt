@@ -1,0 +1,31 @@
+
+
+basicInfo: 获取热门主题 GET /api/topics/hot - 获取系统推荐的热门新闻主题
+requestParams:
+count: "可选 - 返回数量，默认为6"
+responseParams:
+success:
+status_code: 200
+response_body:
+topics:
+- name: "科技"
+  articleCount: 1500
+- name: "体育"
+  articleCount: 1200
+- name: "财经"
+  articleCount: 1100
+- name: "娱乐"
+  articleCount: 950
+- name: "国际"
+  articleCount: 800
+- name: "健康"
+  articleCount: 700
+error:
+status_code: 500
+response_body:
+error: "FETCH_TOPICS_FAILED"
+message: "获取热门主题失败"
+apiType: business_related
+controller: TopicController
+basePath: /api/business/topics
+

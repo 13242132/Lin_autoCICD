@@ -1,0 +1,28 @@
+
+
+// 第6个接口
+basicInfo: 课程签到 POST /api/checkins - 会员课程签到
+requestParams:
+courseId: 1001
+memberId: 2001
+checkInTime: "2024-10-15 17:55:00"
+responseParams:
+// 注意：status_code 是 HTTP 状态码（元数据），不在 JSON 响应体中。
+// 成功时直接返回 response_body 定义的实体结构。
+success:
+  status_code: 200
+  response_body:
+    id: 1
+    courseId: 1001
+    memberId: 2001
+    checkInTime: "2024-10-15 17:55:00"
+    status: "已签到"
+error:
+  status_code: 400
+  response_body:
+    error: "CHECKIN_FAILED"
+    message: "签到失败，未预约或已签到"
+apiType: entity_related
+controller: CheckInController
+basePath: /api/checkins
+

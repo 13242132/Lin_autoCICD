@@ -1,0 +1,288 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: SubscriptionController
+service: SubscriptionService
+repository: SubscriptionRepository
+requestClasses: SubscriptionRequests
+responseClasses: SubscriptionResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Subscription;
+
+@Repository
+public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    // 单表：根据用户ID查询所有订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId")
+    List<Subscription> findByUserId(@Param("userId") Long userId);
+
+    // 单表：根据用户ID和主题名查询订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId AND s.topicName = :topicName")
+    Optional<Subscription> findByUserIdAndTopicName(@Param("userId") Long userId, @Param("topicName") String topicName);
+
+    // 单表：统计用户订阅数量
+    @Query("SELECT COUNT(s) FROM Subscription s WHERE s.userId = :userId")
+    long countByUserId(@Param("userId") Long userId);
+
+    // 单表：根据ID删除订阅记录
+    default void deleteById(Long id) {
+        super.deleteById(id);
+    }
+
+    // 单表：保存订阅记录
+    default Subscription save(Subscription entity) {
+        return super.save(entity);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+
+public class SubscriptionRequests {
+
+    @Data
+    public static class CreateSubscriptionRequest {
+        private Long userId;
+        private String topicName;
+    }
+
+    @Data
+    public static class GetSubscriptionsRequest {
+        private Long userId;
+    }
+
+    @Data
+    public static class DeleteSubscriptionRequest {
+        private Long id;
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Subscription;
+import com.example.demo.entity.Topic;
+import com.example.demo.repository.SubscriptionRepository;
+import com.example.demo.request.SubscriptionRequests;
+import com.example.demo.response.SubscriptionResponses;
+
+@Service
+public class SubscriptionService {
+
+    private final SubscriptionRepository repository;
+
+    public SubscriptionService(SubscriptionRepository repository) {
+        this.repository = repository;
+    }
+
+    // 创建订阅关系
+    public SubscriptionResponses.CreateSubscriptionResponse createSubscription(SubscriptionRequests.CreateSubscriptionRequest request) {
+        // 检查用户是否已订阅该主题
+        Optional<Subscription> existingSubscription = repository.findByUserIdAndTopicName(request.getUserId(), request.getTopicName());
+        if (existingSubscription.isPresent()) {
+            throw new RuntimeException("SUBSCRIPTION_ALREADY_EXISTS");
+        }
+
+        // 检查用户订阅数量限制
+        long subscriptionCount = repository.countByUserId(request.getUserId());
+        if (subscriptionCount >= 5) {
+            throw new RuntimeException("SUBSCRIPTION_LIMIT_EXCEEDED");
+        }
+
+        // 创建新的订阅记录
+        Subscription subscription = new Subscription();
+        subscription.setUserId(request.getUserId());
+        subscription.setTopicName(request.getTopicName());
+        subscription.setSubscribedAt(LocalDateTime.now());
+
+        Subscription savedSubscription = repository.save(subscription);
+
+        // 构造响应
+        SubscriptionResponses.CreateSubscriptionResponse response = new SubscriptionResponses.CreateSubscriptionResponse();
+        response.setId(savedSubscription.getId());
+        response.setUserId(savedSubscription.getUserId());
+        response.setTopicName(savedSubscription.getTopicName());
+        response.setSubscribedAt(savedSubscription.getSubscribedAt().toString());
+
+        return response;
+    }
+
+    // 获取用户订阅主题
+    public SubscriptionResponses.GetSubscriptionsResponse getSubscriptions(SubscriptionRequests.GetSubscriptionsRequest request) {
+        List<Subscription> subscriptions = repository.findByUserId(request.getUserId());
+
+        if (subscriptions.isEmpty()) {
+            throw new RuntimeException("SUBSCRIPTION_NOT_FOUND");
+        }
+
+        // 构造响应
+        SubscriptionResponses.GetSubscriptionsResponse response = new SubscriptionResponses.GetSubscriptionsResponse();
+        response.setUserId(request.getUserId());
+        response.setTopics(subscriptions.stream()
+                .map(sub -> {
+                    SubscriptionResponses.GetSubscriptionsResponse.TopicItem item = new SubscriptionResponses.GetSubscriptionsResponse.TopicItem();
+                    item.setTopicName(sub.getTopicName());
+                    item.setSubscribedAt(sub.getSubscribedAt().toString());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+
+        return response;
+    }
+
+    // 删除订阅关系
+    public void deleteSubscription(SubscriptionRequests.DeleteSubscriptionRequest request) {
+        Optional<Subscription> subscription = repository.findById(request.getId());
+        if (!subscription.isPresent()) {
+            throw new RuntimeException("SUBSCRIPTION_NOT_FOUND");
+        }
+        repository.deleteById(request.getId());
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+import lombok.Data;
+
+public class SubscriptionResponses {
+
+    @Data
+    public static class CreateSubscriptionResponse {
+        private Long id;
+        private Long userId;
+        private String topicName;
+        private String subscribedAt;
+    }
+
+    @Data
+    public static class GetSubscriptionsResponse {
+        private Long userId;
+        private List<TopicItem> topics;
+
+        @Data
+        public static class TopicItem {
+            private String topicName;
+            private String subscribedAt;
+        }
+    }
+
+    @Data
+    public static class ErrorResponse {
+        private String error;
+        private String message;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.Subscription;
+import com.example.demo.request.SubscriptionRequests;
+import com.example.demo.response.SubscriptionResponses;
+import com.example.demo.service.SubscriptionService;
+
+@RestController
+@RequestMapping("/api/subscriptions")
+public class SubscriptionController {
+
+    private final SubscriptionService service;
+
+    public SubscriptionController(SubscriptionService service) {
+        this.service = service;
+    }
+
+    // 获取用户订阅主题
+    @GetMapping
+    public ResponseEntity<?> getSubscriptions(@RequestParam Long userId) {
+        try {
+            SubscriptionRequests.GetSubscriptionsRequest request = new SubscriptionRequests.GetSubscriptionsRequest();
+            request.setUserId(userId);
+            SubscriptionResponses.GetSubscriptionsResponse response = service.getSubscriptions(request);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            if ("SUBSCRIPTION_NOT_FOUND".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new SubscriptionResponses.ErrorResponse("SUBSCRIPTION_NOT_FOUND", "未找到该用户的订阅记录"));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new SubscriptionResponses.ErrorResponse("INTERNAL_ERROR", "服务器内部错误"));
+            }
+        }
+    }
+
+    // 创建订阅关系
+    @PostMapping
+    public ResponseEntity<?> createSubscription(@RequestBody SubscriptionRequests.CreateSubscriptionRequest request) {
+        try {
+            SubscriptionResponses.CreateSubscriptionResponse response = service.createSubscription(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (RuntimeException e) {
+            if ("SUBSCRIPTION_LIMIT_EXCEEDED".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new SubscriptionResponses.ErrorResponse("SUBSCRIPTION_LIMIT_EXCEEDED", "用户最多可订阅5个主题"));
+            } else if ("SUBSCRIPTION_ALREADY_EXISTS".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new SubscriptionResponses.ErrorResponse("SUBSCRIPTION_ALREADY_EXISTS", "用户已订阅该主题"));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new SubscriptionResponses.ErrorResponse("INTERNAL_ERROR", "服务器内部错误"));
+            }
+        }
+    }
+
+    // 删除订阅关系
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteSubscription(@PathVariable Long id) {
+        try {
+            SubscriptionRequests.DeleteSubscriptionRequest request = new SubscriptionRequests.DeleteSubscriptionRequest();
+            request.setId(id);
+            service.deleteSubscription(request);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            if ("SUBSCRIPTION_NOT_FOUND".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new SubscriptionResponses.ErrorResponse("SUBSCRIPTION_NOT_FOUND", "指定的订阅记录不存在"));
+            } else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new SubscriptionResponses.ErrorResponse("INTERNAL_ERROR", "服务器内部错误"));
+            }
+        }
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---

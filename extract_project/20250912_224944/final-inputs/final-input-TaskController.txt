@@ -1,0 +1,324 @@
+
+
+basicInfo: 创建任务 POST /api/tasks - 创建并分配新任务
+
+requestParams:
+title: "完成项目文档"
+description: "需在周五前完成"
+priority: "medium"
+dueDate: "2025-04-12T18:00:00"
+assignee: "zhangsan"
+
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 101
+title: "完成项目文档"
+description: "需在周五前完成"
+priority: "medium"
+dueDate: "2025-04-12T18:00:00"
+assignee: "zhangsan"
+status: "未开始"
+createdAt: "2025-04-05 10:00:00"
+error:
+status_code: 400
+response_body:
+error: "TASK_CREATION_FAILED"
+message: "请选择优先级"
+
+apiType: entity_related
+controller: TaskController
+basePath: /api/tasks
+
+
+
+---API_SEPARATOR---
+
+
+
+basicInfo: 获取任务列表 GET /api/tasks - 查询任务列表（支持按状态过滤）
+
+requestParams:
+status: "可选 - 任务状态（未开始、进行中等）"
+
+responseParams:
+success:
+status_code: 200
+response_body:
+- id: 101
+  title: "完成项目文档"
+  priority: "medium"
+  dueDate: "2025-04-12T18:00:00"
+  assignee: "zhangsan"
+  status: "未开始"
+  createdAt: "2025-04-05 10:00:00"
+- id: 102
+  title: "前端开发"
+  priority: "high"
+  dueDate: "2025-04-10T18:00:00"
+  assignee: "lisi"
+  status: "进行中"
+error:
+status_code: 500
+response_body:
+error: "INTERNAL_ERROR"
+message: "服务器错误"
+
+apiType: entity_related
+controller: TaskController
+basePath: /api/tasks
+
+
+
+---API_SEPARATOR---
+
+
+
+basicInfo: 更新任务状态 PUT /api/tasks/{taskId}/status - 修改任务当前状态
+
+requestParams:
+status: "进行中" // 可选值：未开始、进行中、已完成、已取消
+
+responseParams:
+success:
+status_code: 200
+response_body:
+id: 101
+title: "完成项目文档"
+status: "进行中"
+updatedAt: "2025-04-05 11:30:00"
+history:
+- timestamp: "2025-04-05 10:00:00"
+  action: "任务创建"
+  from: null
+  to: "未开始"
+- timestamp: "2025-04-05 11:30:00"
+  action: "状态变更为“进行中”"
+  from: "未开始"
+  to: "进行中"
+error:
+status_code: 400
+response_body:
+error: "INVALID_STATUS_TRANSITION"
+message: "已完成状态不可变更"
+
+apiType: entity_related
+controller: TaskController
+basePath: /api/tasks
+
+
+
+---ENTITY_LIST_START---
+@Table(name = "user_tbl")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "username", nullable = false, length = 50)
+    private String username;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "nickname", length = 50)
+    private String nickname;
+
+    @Column(name = "avatar", length = 255)
+    private String avatar;
+
+    @Column(name = "role", length = 20)
+    private String role;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+@Table(name = "task_tbl")
+public class Task {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "title", nullable = false, length = 255)
+    private String title;
+
+    @Column(name = "description", length = 1000)
+    private String description;
+
+    @Column(name = "priority", nullable = false, length = 10)
+    private String priority; // 枚举值：low, medium, high
+
+    @Column(name = "due_date", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime dueDate;
+
+    @Column(name = "assignee", nullable = false, length = 50)
+    private String assignee;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status; // 枚举值：未开始、进行中、已完成、已取消
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "updated_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime updatedAt;
+}
+
+@Table(name = "notification_tbl")
+public class Notification {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "type", nullable = false, length = 30)
+    private String type; // 枚举：task_assigned, status_changed, deadline_reminder
+
+    @Column(name = "content", nullable = false, length = 500)
+    private String content;
+
+    @Column(name = "is_read", nullable = false)
+    private Boolean isRead = false;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "sent_at")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime sentAt;
+}
+
+@Table(name = "audit_log_tbl")
+public class AuditLog {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "action", nullable = false, length = 50)
+    private String action; // 如：TASK_CREATED, STATUS_UPDATED
+
+    @Column(name = "target_type", nullable = false, length = 20)
+    private String targetType; // 如：Task, User
+
+    @Column(name = "target_id", nullable = false)
+    private Long targetId;
+
+    @Column(name = "details", columnDefinition = "TEXT")
+    private String details;
+
+    @Column(name = "ip_address", length = 45)
+    private String ipAddress;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+---ENTITY_LIST_END---
+<?xml version="1.0" encoding="UTF-8"?>
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+     <modelVersion>4.0.0</modelVersion>
+     <parent>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+         <version>3.5.3</version>
+         <relativePath/> <!-- lookup parent from repository -->
+     </parent>
+     <groupId>com.example</groupId>
+     <artifactId>disk-mode-test</artifactId>
+     <version>0.0.1-SNAPSHOT</version>
+     <name>disk-mode-test</name>
+     <description>Auto-generated Spring Boot project with H2 support</description>
+     <properties>
+         <java.version>21</java.version>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+         <maven.compiler.encoding>UTF-8</maven.compiler.encoding>
+     </properties>
+     <dependencies>
+        <!-- JWT 支持（Token 生成与解析） -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.11.5</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.11.5</version>
+            <scope>runtime</scope>
+        </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-web</artifactId>
+         </dependency>
+         <!-- Spring Boot Validation -->
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-validation</artifactId>
+         </dependency>
+         <!-- Jackson for JsonFormat annotation -->
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-annotations</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-data-jpa</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>com.h2database</groupId>
+             <artifactId>h2</artifactId>
+             <scope>runtime</scope>
+         </dependency>
+         <dependency>
+             <groupId>org.flywaydb</groupId>
+             <artifactId>flyway-core</artifactId>
+         </dependency>
+         <dependency>
+             <groupId>org.projectlombok</groupId>
+             <artifactId>lombok</artifactId>
+             <optional>true</optional>
+         </dependency>
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-test</artifactId>
+             <scope>test</scope>
+         </dependency>
+     </dependencies>
+  
+     <build>
+         <plugins>
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+             </plugin>
+         </plugins>
+     </build>
+  
+ </project>

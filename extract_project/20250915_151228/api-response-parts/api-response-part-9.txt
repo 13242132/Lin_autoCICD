@@ -1,0 +1,25 @@
+
+
+basicInfo: 提交用户评论 POST /api/comments - 发表对新闻的评论
+requestParams:
+newsId: 1
+userId: 1001
+content: "这个议题非常重要，希望各国能真正落实承诺！"
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 1
+newsId: 1
+userId: 1001
+content: "这个议题非常重要，希望各国能真正落实承诺！"
+createdAt: "2023-10-15T10:10:00Z"
+error:
+status_code: 400
+response_body:
+error: "COMMENT_EMPTY"
+message: "评论内容不能为空"
+apiType: entity_related
+controller: CommentController
+basePath: /api/comments
+

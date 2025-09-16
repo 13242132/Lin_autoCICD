@@ -1,0 +1,24 @@
+
+
+basicInfo: 获取主题列表 GET /api/topics - 查询所有可用新闻主题
+requestParams:
+none
+responseParams:
+success:
+status_code: 200
+response_body:
+- id: 1
+  name: "科技"
+  description: "科技领域最新动态"
+- id: 2
+  name: "体育"
+  description: "国内外体育赛事"
+error:
+status_code: 500
+response_body:
+error: "INTERNAL_ERROR"
+message: "服务器内部错误"
+apiType: entity_related
+controller: TopicController
+basePath: /api/topics
+

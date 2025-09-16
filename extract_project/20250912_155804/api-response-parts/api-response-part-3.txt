@@ -1,0 +1,32 @@
+
+
+basicInfo: 查询新闻列表 GET /api/news - 获取聚合新闻内容
+
+requestParams:
+category: "可选 - 新闻分类（如科技、体育）"
+page: "可选 - 页码，默认为1"
+size: "可选 - 每页数量，默认为10"
+
+responseParams:
+success:
+status_code: 200
+response_body:
+[
+{
+id: 1
+title: "全球气候峰会召开"
+source: "新华社"
+publishedAt: "2023-10-15T10:00:00Z"
+summary: "多国领导人出席并发表重要讲话..."
+}
+]
+error:
+status_code: 500
+response_body:
+error: "NEWS_AGGREGATION_FAILED"
+message: "新闻聚合失败，请检查上游服务"
+
+apiType: entity_related
+controller: NewsController
+basePath: /api/news
+

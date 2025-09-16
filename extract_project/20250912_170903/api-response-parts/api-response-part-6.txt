@@ -1,0 +1,19 @@
+
+
+basicInfo: 删除用户订阅 DELETE /api/users/{userId}/subscriptions/{topicName} - 取消新闻主题订阅
+requestParams:
+userId: "路径参数 - 用户ID"
+topicName: "路径参数 - 主题名称"
+responseParams:
+success:
+status_code: 204
+response_body: {}
+error:
+status_code: 404
+response_body:
+error: "SUBSCRIPTION_NOT_FOUND"
+message: "订阅记录不存在"
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/users/{userId}/subscriptions/{topicName}
+

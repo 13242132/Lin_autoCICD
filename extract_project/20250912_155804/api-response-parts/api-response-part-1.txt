@@ -1,0 +1,25 @@
+basicInfo: 用户注册 POST /api/auth/register - 创建新用户账户
+
+requestParams:
+username: "user123"
+email: "user@example.com"
+password: "Pass1234"
+
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 1
+username: "user123"
+email: "user@example.com"
+createdAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 400
+response_body:
+error: "VALIDATION_ERROR"
+message: "用户名或邮箱已存在，或密码格式不合法"
+
+apiType: auth_related
+controller: AuthController
+basePath: /api/auth
+

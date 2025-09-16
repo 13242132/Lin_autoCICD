@@ -1,0 +1,21 @@
+
+basicInfo: 获取推荐新闻列表 GET /api/recommendations - 基于用户订阅偏好获取个性化推荐
+requestParams:
+userId: "可选 - 用户ID，未登录时返回热门新闻"
+responseParams:
+success:
+status_code: 200
+response_body:
+- id: 1
+  title: "全球AI技术峰会召开"
+  source: "科技日报"
+  publishedAt: "2023-10-15T08:30:00Z"
+  relevanceScore: 0.95
+error:
+status_code: 500
+response_body:
+error: "RECOMMENDATION_ENGINE_ERROR"
+message: "推荐算法服务异常"
+apiType: business_related
+controller: RecommendationController
+basePath: /api/recommendations

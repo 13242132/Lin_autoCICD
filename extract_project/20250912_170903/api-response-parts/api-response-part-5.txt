@@ -1,0 +1,23 @@
+
+
+basicInfo: 创建用户订阅 POST /api/users/{userId}/subscriptions - 添加新闻主题订阅
+requestParams:
+userId: "路径参数 - 用户ID"
+topicName: "请求体 - 主题名称"
+responseParams:
+success:
+status_code: 201
+response_body:
+id: 101
+userId: 1001
+topicName: "科技"
+subscribedAt: "2023-10-15T10:00:00Z"
+error:
+status_code: 400
+response_body:
+error: "SUBSCRIPTION_LIMIT_EXCEEDED"
+message: "最多可订阅5个主题"
+apiType: entity_related
+controller: SubscriptionController
+basePath: /api/users/{userId}/subscriptions
+

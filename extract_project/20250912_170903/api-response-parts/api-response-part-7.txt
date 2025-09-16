@@ -1,0 +1,25 @@
+
+
+basicInfo: 获取热门主题 GET /api/topics/hot - 获取当前热门新闻主题
+requestParams:
+limit: "可选 - 返回数量，默认5"
+responseParams:
+success:
+status_code: 200
+response_body:
+topics:
+- topicName: "科技"
+  newsCount: 25
+  trendScore: 95.5
+- topicName: "体育"
+  newsCount: 18
+  trendScore: 87.2
+error:
+status_code: 500
+response_body:
+error: "INTERNAL_ERROR"
+message: "服务器内部错误"
+apiType: business_related
+controller: TopicController
+basePath: /api/topics/hot
+

@@ -1,0 +1,40 @@
+{
+  "workflow": {
+    "name": "GetHotTopicsWorkflow",
+    "description": "获取热门主题的业务工作流",
+    "steps": [
+      {
+        "name": "ValidateRequest",
+        "action": "validate_count_param",
+        "input": {
+          "count": "${request.count}"
+        }
+      },
+      {
+        "name": "FetchTopics",
+        "action": "query_topics_by_article_count",
+        "input": {
+          "limit": "${validated_count}"
+        }
+      },
+      {
+        "name": "FormatResponse",
+        "action": "format_topics_response",
+        "input": {
+          "topics": "${fetched_topics}"
+        }
+      }
+    ],
+    "output": {
+      "success": {
+        "status_code": 200,
+        "topics": "${formatted_topics}"
+      },
+      "error": {
+        "status_code": 500,
+        "error": "FETCH_TOPICS_FAILED",
+        "message": "获取热门主题失败"
+      }
+    }
+  }
+}

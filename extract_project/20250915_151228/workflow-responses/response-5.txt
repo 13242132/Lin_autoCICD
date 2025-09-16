@@ -1,0 +1,369 @@
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: CommentController
+service: CommentService
+repository: CommentRepository
+requestClasses: CommentRequests
+responseClasses: CommentResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Comment;
+
+@Repository
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    // 单表：插入评论
+    default Comment insert(Comment entity) {
+        return save(entity);
+    }
+
+    // 单表：根据ID查询评论
+    @Query("SELECT c FROM Comment c WHERE c.id = :id")
+    Optional<Comment> findById(@Param("id") Long id);
+
+    // 单表：根据新闻ID查询评论列表
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId ORDER BY c.createdAt DESC")
+    List<Comment> findByNewsId(@Param("newsId") Long newsId);
+
+    // 单表：根据用户ID查询评论列表
+    @Query("SELECT c FROM Comment c WHERE c.userId = :userId ORDER BY c.createdAt DESC")
+    List<Comment> findByUserId(@Param("userId") Long userId);
+
+    // 单表：根据新闻ID和用户ID查询评论
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId AND c.userId = :userId")
+    Optional<Comment> findByNewsIdAndUserId(@Param("newsId") Long newsId, @Param("userId") Long userId);
+
+    // 单表：根据新闻ID分页查询评论
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId ORDER BY c.createdAt DESC")
+    Page<Comment> findByNewsIdWithPagination(@Param("newsId") Long newsId, Pageable pageable);
+
+    // 单表：删除评论（JPA自带deleteById已满足，此处仅做语义封装）
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class CommentRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCommentRequest {
+        private Long newsId;
+        private Long userId;
+        private String content;
+    }
+
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Comment;
+import com.example.demo.entity.User;
+import com.example.demo.entity.News;
+import com.example.demo.repository.CommentRepository;
+import com.example.demo.api.querydto.CommentQueryDTO;
+import com.example.demo.api.service.UserApiService;
+import com.example.demo.api.service.NewsApiService;
+import com.example.demo.request.CommentRequests;
+import com.example.demo.response.CommentResponses;
+import com.example.demo.exception.BusinessException;
+
+@Service
+public class CommentService {
+
+    private final CommentRepository repository;
+
+    // 注入外部模块的Service
+    @Autowired
+    private UserApiService userApiService;
+
+    @Autowired
+    private NewsApiService newsApiService;
+
+    public CommentService(CommentRepository repository) {
+        this.repository = repository;
+    }
+
+    // 调用数据库层：插入评论
+    public Comment createComment(Comment entity) {
+        if (entity.getContent() == null || entity.getContent().trim().isEmpty()) {
+            throw new BusinessException("COMMENT_EMPTY", "评论内容不能为空");
+        }
+        entity.setCreatedAt(LocalDateTime.now());
+        return repository.insert(entity);
+    }
+
+    // 根据ID查询评论
+    public Comment getCommentById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new BusinessException("COMMENT_NOT_FOUND", "评论不存在"));
+    }
+
+    // 根据新闻ID查询评论列表
+    public List<Comment> getCommentsByNewsId(Long newsId) {
+        return repository.findByNewsId(newsId);
+    }
+
+    // 根据用户ID查询评论列表
+    public List<Comment> getCommentsByUserId(Long userId) {
+        return repository.findByUserId(userId);
+    }
+
+    // 分页查询新闻下的评论
+    public CommentResponses.GetCommentsByNewsIdResponse getCommentsByNewsIdWithPagination(
+            Long newsId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Comment> commentPage = repository.findByNewsIdWithPagination(newsId, pageable);
+
+        CommentResponses.GetCommentsByNewsIdResponse response = new CommentResponses.GetCommentsByNewsIdResponse();
+        response.setComments(commentPage.getContent().stream()
+                .map(comment -> {
+                    CommentResponses.CommentItem item = new CommentResponses.CommentItem();
+                    item.setId(comment.getId());
+                    item.setNewsId(comment.getNewsId());
+                    item.setUserId(comment.getUserId());
+                    item.setContent(comment.getContent());
+                    item.setCreatedAt(comment.getCreatedAt());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        response.setTotal(commentPage.getTotalElements());
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalPages(commentPage.getTotalPages());
+        return response;
+    }
+
+    // 查询用户对某新闻的评论
+    public Comment getUserCommentOnNews(Long newsId, Long userId) {
+        return repository.findByNewsIdAndUserId(newsId, userId)
+                .orElseThrow(() -> new BusinessException("COMMENT_NOT_FOUND", "未找到该用户的评论"));
+    }
+
+    // 删除评论
+    public void deleteComment(Long id) {
+        if (!repository.existsById(id)) {
+            throw new BusinessException("COMMENT_NOT_FOUND", "评论不存在");
+        }
+        repository.deleteById(id);
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class CommentResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCommentResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetCommentByIdResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CommentItem {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetCommentsByNewsIdResponse {
+        private List<CommentItem> comments;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetUserCommentOnNewsResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.Comment;
+import com.example.demo.service.CommentService;
+import com.example.demo.request.CommentRequests;
+import com.example.demo.response.CommentResponses;
+import com.example.demo.exception.BusinessException;
+
+@RestController
+@RequestMapping("/api/comments")
+public class CommentController {
+
+    private final CommentService service;
+
+    public CommentController(CommentService service) {
+        this.service = service;
+    }
+
+    // 创建评论
+    @PostMapping
+    public ResponseEntity<CommentResponses.CreateCommentResponse> create(
+            @RequestBody CommentRequests.CreateCommentRequest request) {
+        Comment comment = new Comment();
+        comment.setNewsId(request.getNewsId());
+        comment.setUserId(request.getUserId());
+        comment.setContent(request.getContent());
+        comment.setCreatedAt(LocalDateTime.now());
+
+        Comment saved = service.createComment(comment);
+
+        CommentResponses.CreateCommentResponse response = new CommentResponses.CreateCommentResponse();
+        response.setId(saved.getId());
+        response.setNewsId(saved.getNewsId());
+        response.setUserId(saved.getUserId());
+        response.setContent(saved.getContent());
+        response.setCreatedAt(saved.getCreatedAt());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 根据ID获取评论
+    @GetMapping("/{id}")
+    public ResponseEntity<CommentResponses.GetCommentByIdResponse> getById(@PathVariable Long id) {
+        Comment comment = service.getCommentById(id);
+
+        CommentResponses.GetCommentByIdResponse response = new CommentResponses.GetCommentByIdResponse();
+        response.setId(comment.getId());
+        response.setNewsId(comment.getNewsId());
+        response.setUserId(comment.getUserId());
+        response.setContent(comment.getContent());
+        response.setCreatedAt(comment.getCreatedAt());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 根据新闻ID获取评论列表
+    @GetMapping("/news/{newsId}")
+    public ResponseEntity<List<Comment>> getByNewsId(@PathVariable Long newsId) {
+        List<Comment> comments = service.getCommentsByNewsId(newsId);
+        return ResponseEntity.ok(comments);
+    }
+
+    // 根据用户ID获取评论列表
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Comment>> getByUserId(@PathVariable Long userId) {
+        List<Comment> comments = service.getCommentsByUserId(userId);
+        return ResponseEntity.ok(comments);
+    }
+
+    // 分页查询新闻下的评论
+    @GetMapping("/news/{newsId}/page")
+    public CommentResponses.GetCommentsByNewsIdResponse getCommentsByNewsIdWithPagination(
+            @PathVariable Long newsId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return service.getCommentsByNewsIdWithPagination(newsId, page, size);
+    }
+
+    // 查询用户对某新闻的评论
+    @GetMapping("/news/{newsId}/user/{userId}")
+    public ResponseEntity<CommentResponses.GetUserCommentOnNewsResponse> getUserCommentOnNews(
+            @PathVariable Long newsId, @PathVariable Long userId) {
+        Comment comment = service.getUserCommentOnNews(newsId, userId);
+
+        CommentResponses.GetUserCommentOnNewsResponse response = new CommentResponses.GetUserCommentOnNewsResponse();
+        response.setId(comment.getId());
+        response.setNewsId(comment.getNewsId());
+        response.setUserId(comment.getUserId());
+        response.setContent(comment.getContent());
+        response.setCreatedAt(comment.getCreatedAt());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 删除评论
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        service.deleteComment(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---

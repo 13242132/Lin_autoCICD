@@ -1,0 +1,263 @@
+### ---AUTH_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+
+controller: AuthController  
+service: AuthService  
+repository: AuthRepository  
+requestClasses: AuthRequests  
+responseClasses: AuthResponses  
+
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+
+```java
+package com.example.demo.auth.repository;
+
+import com.example.demo.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AuthRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+    Optional<User> findByEmail(String email);
+}
+```
+
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+
+```java
+package com.example.demo.auth.request;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+public class AuthRequests {
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank(message = "用户名不能为空")
+        @Size(min = 3, max = 20, message = "用户名长度必须在3到20之间")
+        private String username;
+
+        @NotBlank(message = "邮箱不能为空")
+        @Email(message = "邮箱格式不合法")
+        private String email;
+
+        @NotBlank(message = "密码不能为空")
+        @Size(min = 6, message = "密码长度至少为6位")
+        @Pattern(
+            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d!@#$%^&*()_+\\-=\\[\\]{}|;:,.<>?]{8,}$",
+            message = "密码必须包含大小写字母、数字，且至少8位"
+        )
+        private String password;
+    }
+
+    @Data
+    public static class LoginRequest {
+        @NotBlank(message = "用户名或邮箱不能为空")
+        private String usernameOrEmail;
+
+        @NotBlank(message = "密码不能为空")
+        private String password;
+    }
+}
+```
+
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+
+```java
+package com.example.demo.auth.service;
+
+import com.example.demo.entity.User;
+import com.example.demo.auth.repository.AuthRepository;
+import com.example.demo.auth.util.JwtUtil;
+import com.example.demo.auth.response.AuthResponses;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.regex.Pattern;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private AuthRepository authRepository;
+
+    // 用户名正则：字母开头，允许字母数字下划线，3-20字符
+    private static final String USERNAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_]{2,19}$";
+    private static final Pattern USERNAME_PATTERN = Pattern.compile(USERNAME_REGEX);
+
+    public AuthResponses.RegisterResponse register(
+            String username,
+            String email,
+            String password) {
+
+        // 校验用户名格式
+        if (!USERNAME_PATTERN.matcher(username).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名格式不合法");
+        }
+
+        // 校验邮箱唯一性
+        if (authRepository.findByEmail(email).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "邮箱已存在");
+        }
+
+        // 校验用户名唯一性
+        if (authRepository.findByUsername(username).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名已存在");
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPassword(password); // 实际项目中应加密存储
+        user.setStatus("ACTIVE");
+        user.setCreatedAt(LocalDateTime.now());
+
+        authRepository.save(user);
+
+        return new AuthResponses.RegisterResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getCreatedAt()
+        );
+    }
+
+    public AuthResponses.LoginResponse login(String usernameOrEmail, String password) {
+        User user = null;
+
+        // 判断是用户名还是邮箱登录
+        if (usernameOrEmail.contains("@")) {
+            user = authRepository.findByEmail(usernameOrEmail)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误"));
+        } else {
+            user = authRepository.findByUsername(usernameOrEmail)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误"));
+        }
+
+        // 密码校验（实际项目中使用 BCrypt 加密比较）
+        if (!user.getPassword().equals(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误");
+        }
+
+        // 生成 JWT Token
+        String token = JwtUtil.generateToken(user.getId());
+
+        AuthResponses.UserInfo userInfo = new AuthResponses.UserInfo();
+        userInfo.setUserId(user.getId());
+        userInfo.setUsername(user.getUsername());
+        userInfo.setEmail(user.getEmail());
+
+        return new AuthResponses.LoginResponse(token, userInfo);
+    }
+}
+```
+
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+
+```java
+package com.example.demo.auth.response;
+
+import lombok.Data;
+import java.time.LocalDateTime;
+
+public class AuthResponses {
+
+    @Data
+    public static class RegisterResponse {
+        private Long id;
+        private String username;
+        private String email;
+        private LocalDateTime createdAt;
+
+        public RegisterResponse(Long id, String username, String email, LocalDateTime createdAt) {
+            this.id = id;
+            this.username = username;
+            this.email = email;
+            this.createdAt = createdAt;
+        }
+    }
+
+    @Data
+    public static class LoginResponse {
+        private String token;
+        private UserInfo user;
+
+        public LoginResponse(String token, UserInfo user) {
+            this.token = token;
+            this.user = user;
+        }
+    }
+
+    @Data
+    public static class UserInfo {
+        private Long userId;
+        private String username;
+        private String email;
+    }
+}
+```
+
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+
+```java
+package com.example.demo.auth.controller;
+
+import com.example.demo.auth.service.AuthService;
+import com.example.demo.auth.request.AuthRequests;
+import com.example.demo.auth.response.AuthResponses;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponses.RegisterResponse> register(@RequestBody @Valid AuthRequests.RegisterRequest registerRequest) {
+        AuthResponses.RegisterResponse response = authService.register(
+                registerRequest.getUsername(),
+                registerRequest.getEmail(),
+                registerRequest.getPassword()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponses.LoginResponse> login(@RequestBody @Valid AuthRequests.LoginRequest loginRequest) {
+        AuthResponses.LoginResponse response = authService.login(
+                loginRequest.getUsernameOrEmail(),
+                loginRequest.getPassword()
+        );
+        return ResponseEntity.ok(response);
+    }
+}
+```
+
+### ---CONTROLLER_END---

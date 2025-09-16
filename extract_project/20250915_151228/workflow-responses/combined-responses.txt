@@ -1,0 +1,1554 @@
+### ---AUTH_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+
+controller: AuthController  
+service: AuthService  
+repository: AuthRepository  
+requestClasses: AuthRequests  
+responseClasses: AuthResponses  
+
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+
+```java
+package com.example.demo.auth.repository;
+
+import com.example.demo.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+
+@Repository
+public interface AuthRepository extends JpaRepository<User, Long> {
+    Optional<User> findByUsername(String username);
+    Optional<User> findByEmail(String email);
+}
+```
+
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+
+```java
+package com.example.demo.auth.request;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+public class AuthRequests {
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank(message = "用户名不能为空")
+        @Size(min = 3, max = 20, message = "用户名长度必须在3到20之间")
+        private String username;
+
+        @NotBlank(message = "邮箱不能为空")
+        @Email(message = "邮箱格式不合法")
+        private String email;
+
+        @NotBlank(message = "密码不能为空")
+        @Size(min = 6, message = "密码长度至少为6位")
+        @Pattern(
+            regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d!@#$%^&*()_+\\-=\\[\\]{}|;:,.<>?]{8,}$",
+            message = "密码必须包含大小写字母、数字，且至少8位"
+        )
+        private String password;
+    }
+
+    @Data
+    public static class LoginRequest {
+        @NotBlank(message = "用户名或邮箱不能为空")
+        private String usernameOrEmail;
+
+        @NotBlank(message = "密码不能为空")
+        private String password;
+    }
+}
+```
+
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+
+```java
+package com.example.demo.auth.service;
+
+import com.example.demo.entity.User;
+import com.example.demo.auth.repository.AuthRepository;
+import com.example.demo.auth.util.JwtUtil;
+import com.example.demo.auth.response.AuthResponses;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.regex.Pattern;
+
+@Service
+public class AuthService {
+
+    @Autowired
+    private AuthRepository authRepository;
+
+    // 用户名正则：字母开头，允许字母数字下划线，3-20字符
+    private static final String USERNAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_]{2,19}$";
+    private static final Pattern USERNAME_PATTERN = Pattern.compile(USERNAME_REGEX);
+
+    public AuthResponses.RegisterResponse register(
+            String username,
+            String email,
+            String password) {
+
+        // 校验用户名格式
+        if (!USERNAME_PATTERN.matcher(username).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名格式不合法");
+        }
+
+        // 校验邮箱唯一性
+        if (authRepository.findByEmail(email).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "邮箱已存在");
+        }
+
+        // 校验用户名唯一性
+        if (authRepository.findByUsername(username).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "用户名已存在");
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPassword(password); // 实际项目中应加密存储
+        user.setStatus("ACTIVE");
+        user.setCreatedAt(LocalDateTime.now());
+
+        authRepository.save(user);
+
+        return new AuthResponses.RegisterResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getCreatedAt()
+        );
+    }
+
+    public AuthResponses.LoginResponse login(String usernameOrEmail, String password) {
+        User user = null;
+
+        // 判断是用户名还是邮箱登录
+        if (usernameOrEmail.contains("@")) {
+            user = authRepository.findByEmail(usernameOrEmail)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误"));
+        } else {
+            user = authRepository.findByUsername(usernameOrEmail)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误"));
+        }
+
+        // 密码校验（实际项目中使用 BCrypt 加密比较）
+        if (!user.getPassword().equals(password)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户名/邮箱或密码错误");
+        }
+
+        // 生成 JWT Token
+        String token = JwtUtil.generateToken(user.getId());
+
+        AuthResponses.UserInfo userInfo = new AuthResponses.UserInfo();
+        userInfo.setUserId(user.getId());
+        userInfo.setUsername(user.getUsername());
+        userInfo.setEmail(user.getEmail());
+
+        return new AuthResponses.LoginResponse(token, userInfo);
+    }
+}
+```
+
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+
+```java
+package com.example.demo.auth.response;
+
+import lombok.Data;
+import java.time.LocalDateTime;
+
+public class AuthResponses {
+
+    @Data
+    public static class RegisterResponse {
+        private Long id;
+        private String username;
+        private String email;
+        private LocalDateTime createdAt;
+
+        public RegisterResponse(Long id, String username, String email, LocalDateTime createdAt) {
+            this.id = id;
+            this.username = username;
+            this.email = email;
+            this.createdAt = createdAt;
+        }
+    }
+
+    @Data
+    public static class LoginResponse {
+        private String token;
+        private UserInfo user;
+
+        public LoginResponse(String token, UserInfo user) {
+            this.token = token;
+            this.user = user;
+        }
+    }
+
+    @Data
+    public static class UserInfo {
+        private Long userId;
+        private String username;
+        private String email;
+    }
+}
+```
+
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+
+```java
+package com.example.demo.auth.controller;
+
+import com.example.demo.auth.service.AuthService;
+import com.example.demo.auth.request.AuthRequests;
+import com.example.demo.auth.response.AuthResponses;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponses.RegisterResponse> register(@RequestBody @Valid AuthRequests.RegisterRequest registerRequest) {
+        AuthResponses.RegisterResponse response = authService.register(
+                registerRequest.getUsername(),
+                registerRequest.getEmail(),
+                registerRequest.getPassword()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponses.LoginResponse> login(@RequestBody @Valid AuthRequests.LoginRequest loginRequest) {
+        AuthResponses.LoginResponse response = authService.login(
+                loginRequest.getUsernameOrEmail(),
+                loginRequest.getPassword()
+        );
+        return ResponseEntity.ok(response);
+    }
+}
+```
+
+### ---CONTROLLER_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: NewsController
+service: NewsService
+repository: NewsRepository
+requestClasses: NewsRequests
+responseClasses: NewsResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.News;
+
+@Repository
+public interface NewsRepository extends JpaRepository<News, Long> {
+
+    // 单表：根据分类和来源查询新闻列表
+    @Query("SELECT n FROM News n WHERE (:category IS NULL OR n.categoryId = :category) AND (:source IS NULL OR n.source = :source)")
+    Page<News> findByCategoryAndSource(@Param("category") Integer category, @Param("source") String source, Pageable pageable);
+
+    // 单表：根据ID查询新闻
+    @Query("SELECT n FROM News n WHERE n.id = :id")
+    Optional<News> findById(@Param("id") Long id);
+
+    // 单表：插入新闻
+    default News insert(News entity) {
+        return save(entity);
+    }
+
+    // 单表：删除新闻
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListRequest {
+        private Integer category;
+        private String source;
+        private Integer page = 1;
+        private Integer size = 10;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateNewsRequest {
+        private String title;
+        private String source;
+        private String publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private Integer categoryId;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsDetailRequest {
+        private Long id;
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.News;
+import com.example.demo.entity.Comment;
+import com.example.demo.entity.Like;
+import com.example.demo.entity.User;
+import com.example.demo.repository.NewsRepository;
+import com.example.demo.api.querydto.CommentQueryDTO;
+import com.example.demo.api.querydto.LikeQueryDTO;
+import com.example.demo.api.service.CommentApiService;
+import com.example.demo.api.service.LikeApiService;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@Service
+public class NewsService {
+
+    private final NewsRepository repository;
+
+    @Autowired
+    private CommentApiService commentApiService;
+
+    @Autowired
+    private LikeApiService likeApiService;
+
+    public NewsService(NewsRepository repository) {
+        this.repository = repository;
+    }
+
+    // 创建新闻
+    public News createNews(News entity) {
+        if (entity.getTitle() == null || entity.getTitle().isEmpty()) {
+            throw new BusinessException("INVALID_DATA", "标题不能为空");
+        }
+        if (entity.getSource() == null || entity.getSource().isEmpty()) {
+            throw new BusinessException("INVALID_DATA", "来源不能为空");
+        }
+        return repository.insert(entity);
+    }
+
+    // 分页查询新闻列表
+    public NewsResponses.GetNewsListResponse getNewsList(NewsRequests.GetNewsListRequest request) {
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+        Page<News> newsPage = repository.findByCategoryAndSource(request.getCategory(), request.getSource(), pageable);
+
+        NewsResponses.GetNewsListResponse response = new NewsResponses.GetNewsListResponse();
+        response.setNews(newsPage.getContent().stream()
+                .map(news -> {
+                    NewsResponses.NewsItem item = new NewsResponses.NewsItem();
+                    item.setId(news.getId());
+                    item.setTitle(news.getTitle());
+                    item.setSource(news.getSource());
+                    item.setPublishedAt(news.getPublishedAt());
+                    item.setSummary(news.getSummary());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        response.setTotal(newsPage.getTotalElements());
+        response.setPage(request.getPage());
+        response.setSize(request.getSize());
+        response.setTotalPages(newsPage.getTotalPages());
+        return response;
+    }
+
+    // 获取新闻详情及关联信息
+    public NewsResponses.GetNewsDetailResponse getNewsDetail(Long id, Long currentUserId) {
+        Optional<News> newsOpt = repository.findById(id);
+        if (!newsOpt.isPresent()) {
+            throw new BusinessException("NEWS_NOT_FOUND", "新闻不存在");
+        }
+
+        News news = newsOpt.get();
+
+        // 查询评论
+        CommentQueryDTO commentQueryDTO = new CommentQueryDTO();
+        commentQueryDTO.setNewsId(id);
+        List<Comment> comments = commentApiService.queryByConditions(commentQueryDTO);
+
+        // 查询点赞数和是否点赞
+        LikeQueryDTO likeQueryDTO = new LikeQueryDTO();
+        likeQueryDTO.setNewsId(id);
+        List<Like> likes = likeApiService.queryByConditions(likeQueryDTO);
+        boolean isLiked = false;
+        if (currentUserId != null) {
+            isLiked = likes.stream().anyMatch(like -> like.getUserId().equals(currentUserId));
+        }
+
+        NewsResponses.GetNewsDetailResponse response = new NewsResponses.GetNewsDetailResponse();
+        response.setId(news.getId());
+        response.setTitle(news.getTitle());
+        response.setSource(news.getSource());
+        response.setPublishedAt(news.getPublishedAt());
+        response.setSummary(news.getSummary());
+        response.setUrl(news.getUrl());
+        response.setImageUrl(news.getImageUrl());
+        response.setComments(comments.stream().map(comment -> {
+            NewsResponses.CommentItem item = new NewsResponses.CommentItem();
+            item.setId(comment.getId());
+            item.setUserId(comment.getUserId());
+            item.setContent(comment.getContent());
+            item.setCreatedAt(comment.getCreatedAt());
+            return item;
+        }).collect(Collectors.toList()));
+        response.setLikesCount(likes.size());
+        response.setIsLiked(isLiked);
+        return response;
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+import java.time.LocalDateTime;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class NewsResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsListResponse {
+        private List<NewsItem> news;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NewsItem {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetNewsDetailResponse {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private List<CommentItem> comments;
+        private long likesCount;
+        private boolean isLiked;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CommentItem {
+        private Long id;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateNewsResponse {
+        private Long id;
+        private String title;
+        private String source;
+        private LocalDateTime publishedAt;
+        private String summary;
+        private String url;
+        private String imageUrl;
+        private Integer categoryId;
+        private LocalDateTime createdAt;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.News;
+import com.example.demo.service.NewsService;
+import com.example.demo.request.NewsRequests;
+import com.example.demo.response.NewsResponses;
+import com.example.demo.exception.BusinessException;
+
+@RestController
+@RequestMapping("/api/news")
+public class NewsController {
+
+    private final NewsService service;
+
+    public NewsController(NewsService service) {
+        this.service = service;
+    }
+
+    // 获取新闻列表
+    @GetMapping
+    public ResponseEntity<NewsResponses.GetNewsListResponse> getNewsList(
+            @RequestParam(required = false) Integer category,
+            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        NewsRequests.GetNewsListRequest request = new NewsRequests.GetNewsListRequest(category, source, page, size);
+        NewsResponses.GetNewsListResponse response = service.getNewsList(request);
+        return ResponseEntity.ok(response);
+    }
+
+    // 创建新闻
+    @PostMapping
+    public ResponseEntity<NewsResponses.CreateNewsResponse> createNews(@RequestBody News news) {
+        News created = service.createNews(news);
+        NewsResponses.CreateNewsResponse response = new NewsResponses.CreateNewsResponse();
+        response.setId(created.getId());
+        response.setTitle(created.getTitle());
+        response.setSource(created.getSource());
+        response.setPublishedAt(created.getPublishedAt());
+        response.setSummary(created.getSummary());
+        response.setUrl(created.getUrl());
+        response.setImageUrl(created.getImageUrl());
+        response.setCategoryId(created.getCategoryId());
+        response.setCreatedAt(created.getCreatedAt());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 获取新闻详情
+    @GetMapping("/{id}")
+    public ResponseEntity<NewsResponses.GetNewsDetailResponse> getNewsDetail(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-ID", required = false) Long currentUserId) {
+
+        NewsResponses.GetNewsDetailResponse response = service.getNewsDetail(id, currentUserId);
+        return ResponseEntity.ok(response);
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: SubscriptionController
+service: SubscriptionService
+repository: SubscriptionRepository
+requestClasses: SubscriptionRequests
+responseClasses: SubscriptionResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Subscription;
+
+@Repository
+public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    // 单表：根据用户ID查询订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId")
+    List<Subscription> findByUserId(@Param("userId") Long userId);
+
+    // 单表：根据订阅ID查询订阅记录
+    @Query("SELECT s FROM Subscription s WHERE s.id = :id")
+    Optional<Subscription> findById(@Param("id") Long id);
+
+    // 单表：统计用户订阅数量
+    @Query("SELECT COUNT(s) FROM Subscription s WHERE s.userId = :userId")
+    long countByUserId(@Param("userId") Long userId);
+
+    // 单表：根据用户ID和主题名查询订阅记录（用于防止重复订阅）
+    @Query("SELECT s FROM Subscription s WHERE s.userId = :userId AND s.topicName = :topicName")
+    Optional<Subscription> findByUserIdAndTopicName(@Param("userId") Long userId, @Param("topicName") String topicName);
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class SubscriptionRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateSubscriptionRequest {
+        private Long userId;
+        private String topicName;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetSubscriptionsRequest {
+        private Long userId;
+    }
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Subscription;
+import com.example.demo.entity.User;
+import com.example.demo.exception.BusinessException;
+import com.example.demo.repository.SubscriptionRepository;
+import com.example.demo.request.SubscriptionRequests;
+import com.example.demo.response.SubscriptionResponses;
+import com.example.demo.api.service.UserApiService;
+
+@Service
+public class SubscriptionService {
+
+    private final SubscriptionRepository repository;
+    private final UserApiService userApiService;
+
+    public SubscriptionService(SubscriptionRepository repository, UserApiService userApiService) {
+        this.repository = repository;
+        this.userApiService = userApiService;
+    }
+
+    // 创建订阅
+    public Subscription createSubscription(SubscriptionRequests.CreateSubscriptionRequest request) {
+        Long userId = request.getUserId();
+        String topicName = request.getTopicName();
+
+        // 验证用户是否存在
+        Optional<User> userOpt = userApiService.findById(userId);
+        if (!userOpt.isPresent()) {
+            throw new BusinessException("USER_NOT_FOUND", "用户不存在");
+        }
+
+        // 检查是否已订阅该主题
+        Optional<Subscription> existingSubscription = repository.findByUserIdAndTopicName(userId, topicName);
+        if (existingSubscription.isPresent()) {
+            throw new BusinessException("SUBSCRIPTION_ALREADY_EXISTS", "已订阅该主题");
+        }
+
+        // 检查用户订阅数是否超过限制
+        long subscriptionCount = repository.countByUserId(userId);
+        if (subscriptionCount >= 5) {
+            throw new BusinessException("SUBSCRIPTION_LIMIT_EXCEEDED", "最多可订阅5个主题");
+        }
+
+        // 创建新订阅
+        Subscription subscription = new Subscription();
+        subscription.setUserId(userId);
+        subscription.setTopicName(topicName);
+        subscription.setSubscribedAt(LocalDateTime.now());
+        return repository.save(subscription);
+    }
+
+    // 获取用户订阅列表
+    public List<SubscriptionResponses.SubscriptionItem> getSubscriptions(Long userId) {
+        // 验证用户是否存在
+        Optional<User> userOpt = userApiService.findById(userId);
+        if (!userOpt.isPresent()) {
+            throw new BusinessException("USER_NOT_FOUND", "用户不存在");
+        }
+
+        // 查询用户订阅
+        List<Subscription> subscriptions = repository.findByUserId(userId);
+        return subscriptions.stream()
+                .map(sub -> {
+                    SubscriptionResponses.SubscriptionItem item = new SubscriptionResponses.SubscriptionItem();
+                    item.setTopicName(sub.getTopicName());
+                    item.setSubscribedAt(sub.getSubscribedAt());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    // 删除订阅
+    public void deleteSubscription(Long id) {
+        Optional<Subscription> subscriptionOpt = repository.findById(id);
+        if (!subscriptionOpt.isPresent()) {
+            throw new BusinessException("SUBSCRIPTION_NOT_FOUND", "订阅记录不存在");
+        }
+        repository.deleteById(id);
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.time.LocalDateTime;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class SubscriptionResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubscriptionItem {
+        private String topicName;
+        private LocalDateTime subscribedAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateSubscriptionResponse {
+        private Long id;
+        private Long userId;
+        private String topicName;
+        private LocalDateTime subscribedAt;
+    }
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.Subscription;
+import com.example.demo.request.SubscriptionRequests;
+import com.example.demo.response.SubscriptionResponses;
+import com.example.demo.service.SubscriptionService;
+
+@RestController
+@RequestMapping("/api/subscriptions")
+public class SubscriptionController {
+
+    private final SubscriptionService service;
+
+    public SubscriptionController(SubscriptionService service) {
+        this.service = service;
+    }
+
+    // 获取用户订阅列表
+    @GetMapping
+    public ResponseEntity<List<SubscriptionResponses.SubscriptionItem>> getSubscriptions(
+            @RequestParam Long userId) {
+        List<SubscriptionResponses.SubscriptionItem> result = service.getSubscriptions(userId);
+        return ResponseEntity.ok(result);
+    }
+
+    // 创建订阅
+    @PostMapping
+    public ResponseEntity<SubscriptionResponses.CreateSubscriptionResponse> createSubscription(
+            @RequestBody SubscriptionRequests.CreateSubscriptionRequest request) {
+        Subscription subscription = service.createSubscription(request);
+        SubscriptionResponses.CreateSubscriptionResponse response = new SubscriptionResponses.CreateSubscriptionResponse();
+        response.setId(subscription.getId());
+        response.setUserId(subscription.getUserId());
+        response.setTopicName(subscription.getTopicName());
+        response.setSubscribedAt(subscription.getSubscribedAt());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 删除订阅
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSubscription(@PathVariable Long id) {
+        service.deleteSubscription(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: TopicController
+service: TopicService
+repository: TopicRepository
+requestClasses: TopicRequests
+responseClasses: TopicResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Topic;
+
+@Repository
+public interface TopicRepository extends JpaRepository<Topic, Long> {
+
+    // 单表：查询所有主题
+    @Query("SELECT t FROM Topic t ORDER BY t.id")
+    List<Topic> findAllTopics();
+
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class TopicRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetTopicsRequest {
+        // 无参数
+    }
+
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Topic;
+import com.example.demo.repository.TopicRepository;
+import com.example.demo.response.TopicResponses;
+
+@Service
+public class TopicService {
+
+    private final TopicRepository repository;
+
+    public TopicService(TopicRepository repository) {
+        this.repository = repository;
+    }
+
+    // 查询所有主题
+    public List<TopicResponses.TopicItem> getAllTopics() {
+        List<Topic> topics = repository.findAllTopics();
+        return topics.stream()
+                .map(topic -> {
+                    TopicResponses.TopicItem item = new TopicResponses.TopicItem();
+                    item.setId(topic.getId());
+                    item.setName(topic.getName());
+                    item.setDescription(topic.getDescription());
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.util.List;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class TopicResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TopicItem {
+        private Long id;
+        private String name;
+        private String description;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetTopicsResponse {
+        private List<TopicItem> topics;
+    }
+
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+import com.example.demo.response.TopicResponses;
+import com.example.demo.service.TopicService;
+
+@RequestMapping("/api/topics")
+@RestController
+public class TopicController {
+
+    private final TopicService service;
+
+    public TopicController(TopicService service) {
+        this.service = service;
+    }
+
+    // 获取所有主题
+    @GetMapping
+    public ResponseEntity<List<TopicResponses.TopicItem>> getTopics() {
+        List<TopicResponses.TopicItem> topics = service.getAllTopics();
+        return ResponseEntity.ok(topics);
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---
+
+### ---CRUD_AI_OUTPUT_START---
+
+### ---CLASS_NAMES_START---
+controller: CommentController
+service: CommentService
+repository: CommentRepository
+requestClasses: CommentRequests
+responseClasses: CommentResponses
+### ---CLASS_NAMES_END---
+
+### ---REPOSITORY_START---
+package com.example.demo.repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import com.example.demo.entity.Comment;
+
+@Repository
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    // 单表：插入评论
+    default Comment insert(Comment entity) {
+        return save(entity);
+    }
+
+    // 单表：根据ID查询评论
+    @Query("SELECT c FROM Comment c WHERE c.id = :id")
+    Optional<Comment> findById(@Param("id") Long id);
+
+    // 单表：根据新闻ID查询评论列表
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId ORDER BY c.createdAt DESC")
+    List<Comment> findByNewsId(@Param("newsId") Long newsId);
+
+    // 单表：根据用户ID查询评论列表
+    @Query("SELECT c FROM Comment c WHERE c.userId = :userId ORDER BY c.createdAt DESC")
+    List<Comment> findByUserId(@Param("userId") Long userId);
+
+    // 单表：根据新闻ID和用户ID查询评论
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId AND c.userId = :userId")
+    Optional<Comment> findByNewsIdAndUserId(@Param("newsId") Long newsId, @Param("userId") Long userId);
+
+    // 单表：根据新闻ID分页查询评论
+    @Query("SELECT c FROM Comment c WHERE c.newsId = :newsId ORDER BY c.createdAt DESC")
+    Page<Comment> findByNewsIdWithPagination(@Param("newsId") Long newsId, Pageable pageable);
+
+    // 单表：删除评论（JPA自带deleteById已满足，此处仅做语义封装）
+    default void deleteById(Long id) {
+        deleteById(id);
+    }
+}
+### ---REPOSITORY_END---
+
+### ---REQUEST_CLASSES_START---
+package com.example.demo.request;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class CommentRequests {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCommentRequest {
+        private Long newsId;
+        private Long userId;
+        private String content;
+    }
+
+}
+### ---REQUEST_CLASSES_END---
+
+### ---SERVICE_START---
+package com.example.demo.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import com.example.demo.entity.Comment;
+import com.example.demo.entity.User;
+import com.example.demo.entity.News;
+import com.example.demo.repository.CommentRepository;
+import com.example.demo.api.querydto.CommentQueryDTO;
+import com.example.demo.api.service.UserApiService;
+import com.example.demo.api.service.NewsApiService;
+import com.example.demo.request.CommentRequests;
+import com.example.demo.response.CommentResponses;
+import com.example.demo.exception.BusinessException;
+
+@Service
+public class CommentService {
+
+    private final CommentRepository repository;
+
+    // 注入外部模块的Service
+    @Autowired
+    private UserApiService userApiService;
+
+    @Autowired
+    private NewsApiService newsApiService;
+
+    public CommentService(CommentRepository repository) {
+        this.repository = repository;
+    }
+
+    // 调用数据库层：插入评论
+    public Comment createComment(Comment entity) {
+        if (entity.getContent() == null || entity.getContent().trim().isEmpty()) {
+            throw new BusinessException("COMMENT_EMPTY", "评论内容不能为空");
+        }
+        entity.setCreatedAt(LocalDateTime.now());
+        return repository.insert(entity);
+    }
+
+    // 根据ID查询评论
+    public Comment getCommentById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new BusinessException("COMMENT_NOT_FOUND", "评论不存在"));
+    }
+
+    // 根据新闻ID查询评论列表
+    public List<Comment> getCommentsByNewsId(Long newsId) {
+        return repository.findByNewsId(newsId);
+    }
+
+    // 根据用户ID查询评论列表
+    public List<Comment> getCommentsByUserId(Long userId) {
+        return repository.findByUserId(userId);
+    }
+
+    // 分页查询新闻下的评论
+    public CommentResponses.GetCommentsByNewsIdResponse getCommentsByNewsIdWithPagination(
+            Long newsId, int page, int size) {
+        Pageable pageable = PageRequest.of(page - 1, size);
+        Page<Comment> commentPage = repository.findByNewsIdWithPagination(newsId, pageable);
+
+        CommentResponses.GetCommentsByNewsIdResponse response = new CommentResponses.GetCommentsByNewsIdResponse();
+        response.setComments(commentPage.getContent().stream()
+                .map(comment -> {
+                    CommentResponses.CommentItem item = new CommentResponses.CommentItem();
+                    item.setId(comment.getId());
+                    item.setNewsId(comment.getNewsId());
+                    item.setUserId(comment.getUserId());
+                    item.setContent(comment.getContent());
+                    item.setCreatedAt(comment.getCreatedAt());
+                    return item;
+                })
+                .collect(Collectors.toList()));
+        response.setTotal(commentPage.getTotalElements());
+        response.setPage(page);
+        response.setSize(size);
+        response.setTotalPages(commentPage.getTotalPages());
+        return response;
+    }
+
+    // 查询用户对某新闻的评论
+    public Comment getUserCommentOnNews(Long newsId, Long userId) {
+        return repository.findByNewsIdAndUserId(newsId, userId)
+                .orElseThrow(() -> new BusinessException("COMMENT_NOT_FOUND", "未找到该用户的评论"));
+    }
+
+    // 删除评论
+    public void deleteComment(Long id) {
+        if (!repository.existsById(id)) {
+            throw new BusinessException("COMMENT_NOT_FOUND", "评论不存在");
+        }
+        repository.deleteById(id);
+    }
+}
+### ---SERVICE_END---
+
+### ---RESPONSE_CLASSES_START---
+package com.example.demo.response;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+
+public class CommentResponses {
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CreateCommentResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetCommentByIdResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CommentItem {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetCommentsByNewsIdResponse {
+        private List<CommentItem> comments;
+        private long total;
+        private int page;
+        private int size;
+        private int totalPages;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class GetUserCommentOnNewsResponse {
+        private Long id;
+        private Long newsId;
+        private Long userId;
+        private String content;
+        private LocalDateTime createdAt;
+    }
+
+}
+### ---RESPONSE_CLASSES_END---
+
+### ---CONTROLLER_START---
+package com.example.demo.controller;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.example.demo.entity.Comment;
+import com.example.demo.service.CommentService;
+import com.example.demo.request.CommentRequests;
+import com.example.demo.response.CommentResponses;
+import com.example.demo.exception.BusinessException;
+
+@RestController
+@RequestMapping("/api/comments")
+public class CommentController {
+
+    private final CommentService service;
+
+    public CommentController(CommentService service) {
+        this.service = service;
+    }
+
+    // 创建评论
+    @PostMapping
+    public ResponseEntity<CommentResponses.CreateCommentResponse> create(
+            @RequestBody CommentRequests.CreateCommentRequest request) {
+        Comment comment = new Comment();
+        comment.setNewsId(request.getNewsId());
+        comment.setUserId(request.getUserId());
+        comment.setContent(request.getContent());
+        comment.setCreatedAt(LocalDateTime.now());
+
+        Comment saved = service.createComment(comment);
+
+        CommentResponses.CreateCommentResponse response = new CommentResponses.CreateCommentResponse();
+        response.setId(saved.getId());
+        response.setNewsId(saved.getNewsId());
+        response.setUserId(saved.getUserId());
+        response.setContent(saved.getContent());
+        response.setCreatedAt(saved.getCreatedAt());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // 根据ID获取评论
+    @GetMapping("/{id}")
+    public ResponseEntity<CommentResponses.GetCommentByIdResponse> getById(@PathVariable Long id) {
+        Comment comment = service.getCommentById(id);
+
+        CommentResponses.GetCommentByIdResponse response = new CommentResponses.GetCommentByIdResponse();
+        response.setId(comment.getId());
+        response.setNewsId(comment.getNewsId());
+        response.setUserId(comment.getUserId());
+        response.setContent(comment.getContent());
+        response.setCreatedAt(comment.getCreatedAt());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 根据新闻ID获取评论列表
+    @GetMapping("/news/{newsId}")
+    public ResponseEntity<List<Comment>> getByNewsId(@PathVariable Long newsId) {
+        List<Comment> comments = service.getCommentsByNewsId(newsId);
+        return ResponseEntity.ok(comments);
+    }
+
+    // 根据用户ID获取评论列表
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Comment>> getByUserId(@PathVariable Long userId) {
+        List<Comment> comments = service.getCommentsByUserId(userId);
+        return ResponseEntity.ok(comments);
+    }
+
+    // 分页查询新闻下的评论
+    @GetMapping("/news/{newsId}/page")
+    public CommentResponses.GetCommentsByNewsIdResponse getCommentsByNewsIdWithPagination(
+            @PathVariable Long newsId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return service.getCommentsByNewsIdWithPagination(newsId, page, size);
+    }
+
+    // 查询用户对某新闻的评论
+    @GetMapping("/news/{newsId}/user/{userId}")
+    public ResponseEntity<CommentResponses.GetUserCommentOnNewsResponse> getUserCommentOnNews(
+            @PathVariable Long newsId, @PathVariable Long userId) {
+        Comment comment = service.getUserCommentOnNews(newsId, userId);
+
+        CommentResponses.GetUserCommentOnNewsResponse response = new CommentResponses.GetUserCommentOnNewsResponse();
+        response.setId(comment.getId());
+        response.setNewsId(comment.getNewsId());
+        response.setUserId(comment.getUserId());
+        response.setContent(comment.getContent());
+        response.setCreatedAt(comment.getCreatedAt());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 删除评论
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        service.deleteComment(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+### ---CONTROLLER_END---
+### ---CRUD_AI_OUTPUT_END---
+
+
+---ENTITY_LIST_START---
+
+@Table(name = "user_tbl")
+public class User {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "username", nullable = false, length = 20)
+    private String username;
+
+    @Column(name = "email", nullable = false, length = 100)
+    private String email;
+
+    @Column(name = "password", nullable = false, length = 100)
+    private String password;
+
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "news_tbl")
+public class News {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "title", nullable = false, length = 255)
+    private String title;
+
+    @Column(name = "source", nullable = false, length = 100)
+    private String source;
+
+    @Column(name = "published_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime publishedAt;
+
+    @Column(name = "summary", length = 500)
+    private String summary;
+
+    @Column(name = "url", length = 500)
+    private String url;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
+    @Column(name = "category_id")
+    private Integer categoryId;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "topic_tbl")
+public class Topic {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "name", nullable = false, length = 50)
+    private String name;
+
+    @Column(name = "description", length = 255)
+    private String description;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "subscription_tbl")
+public class Subscription {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "topic_name", nullable = false, length = 50)
+    private String topicName;
+
+    @Column(name = "subscribed_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime subscribedAt;
+}
+
+@Table(name = "comment_tbl")
+public class Comment {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "content", nullable = false, length = 1000)
+    private String content;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "like_tbl")
+public class Like {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "news_id", nullable = false)
+    private Long newsId;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+@Table(name = "audit_log_tbl")
+public class AuditLog {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "action", nullable = false, length = 50)
+    private String action;
+
+    @Column(name = "entity_type", nullable = false, length = 50)
+    private String entityType;
+
+    @Column(name = "entity_id")
+    private Long entityId;
+
+    @Column(name = "details", length = 1000)
+    private String details;
+
+    @Column(name = "created_at", nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime createdAt;
+}
+
+---ENTITY_LIST_END---
